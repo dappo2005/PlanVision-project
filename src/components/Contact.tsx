@@ -5,7 +5,7 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { Leaf, ArrowLeft, Home, Mail, Phone, MapPin, Send, Clock, Globe, MessageCircle, CheckCircle2, Instagram, Linkedin, Github } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 interface ContactProps {
   onLogout: () => void;
@@ -32,7 +32,7 @@ const teamMembers = [
     role: "Business Analyst, Requirement Engineer",
     email: "tersia.30323@gmail.com",
     phone: "+6282274044572",
-    instagram: "@neon.ren"
+    instagram: "@ffael9_"
   },
   {
     name: "Imam Yanif",
