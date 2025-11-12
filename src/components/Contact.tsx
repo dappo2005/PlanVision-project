@@ -5,7 +5,7 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { Leaf, ArrowLeft, Home, Mail, Phone, MapPin, Send, Clock, Globe, MessageCircle, CheckCircle2, Instagram, Linkedin, Github } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 interface ContactProps {
   onLogout: () => void;
@@ -18,28 +18,40 @@ const teamMembers = [
     role: "Project Manager, Backend Dev",
     email: "daf.maula123@gmail.com",
     phone: "+6281933311580",
-    instagram: "@dafa_mkal"
+    instagram: "@dafa_mkal",
+    avatar: "DM",
+    color: "bg-gradient-to-br from-[#2ECC71] to-[#27AE60]",
+    photo: "/images/team/daffa.jpeg"
   },
   {
     name: "Aisyah Putri Harmelia",
     role: "Frontend Dev, Data Analis",
     email: "aisyahputrihhh16@gmail.com",
     phone: "+6287805987309",
-    instagram: "@aisyahphr"
+    instagram: "@aisyahphr",
+    avatar: "AP",
+    color: "bg-gradient-to-br from-[#F39C12] to-[#E67E22]",
+    photo: "/images/team/ais.jpeg"
   },
   {
     name: "Refael Tresia Sibarani",
     role: "Business Analyst, Requirement Engineer",
     email: "tersia.30323@gmail.com",
     phone: "+6282274044572",
-    instagram: "@neon.ren"
+    instagram: "@neon.ren",
+    avatar: "RT",
+    color: "bg-gradient-to-br from-[#2ECC71] to-[#F39C12]",
+    photo: "/images/team/refa.jpeg"
   },
   {
     name: "Imam Yanif",
     role: "Database Analyst, Deployment",
     email: "imamyanif05@gmail.com",
     phone: "+6281317466699",
-    instagram: "@imam_y4224"
+    instagram: "@imam_y4224",
+    avatar: "IY",
+    color: "bg-gradient-to-br from-[#E67E22] to-[#D35400]",
+    photo: "/images/team/imam.jpeg"
   }
 ];
 
@@ -400,14 +412,31 @@ export default function Contact({ onLogout, onNavigateToDashboard }: ContactProp
           <div className="mt-12">
             <h2 className="text-3xl text-gray-900 text-center mb-8">Tim Pengembang PlantVision</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {teamMembers.map((member, index) => (
-                <Card key={index} className="hover:shadow-xl transition-all hover:-translate-y-1">
-                  <CardContent className="p-6">
-                    <div className="w-16 h-16 bg-gradient-to-br from-[#2ECC71] to-[#F39C12] rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
-                      {member.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                    </div>
-                    <h3 className="text-gray-900 text-center mb-1 text-sm font-semibold leading-tight">{member.name}</h3>
-                    <p className="text-[#2ECC71] text-center mb-4 text-xs">{member.role}</p>
+              {teamMembers.map((member, index) => {
+                const [imageError, setImageError] = useState(false);
+                return (
+                  <Card key={index} className="hover:shadow-xl transition-all hover:-translate-y-1">
+                    <CardContent className="p-6">
+                      <div className="relative w-20 h-20 mx-auto mb-4">
+                        <div className={`w-20 h-20 ${member.color} rounded-full flex items-center justify-center text-white text-xl font-bold overflow-hidden border-4 border-white shadow-lg relative`}>
+                          {member.photo && !imageError ? (
+                            <img
+                              src={member.photo}
+                              alt={member.name}
+                              className="absolute inset-0 w-full h-full object-cover"
+                              style={{
+                                objectPosition: 'center 25%',
+                              }}
+                              onError={() => setImageError(true)}
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="absolute inset-0 flex items-center justify-center z-10">{member.avatar}</span>
+                          )}
+                        </div>
+                      </div>
+                      <h3 className="text-gray-900 text-center mb-1 text-sm font-semibold leading-tight">{member.name}</h3>
+                      <p className="text-[#2ECC71] text-center mb-4 text-xs">{member.role}</p>
                     <div className="space-y-2 text-gray-600">
                       <a 
                         href={`mailto:${member.email}`}
@@ -435,7 +464,8 @@ export default function Contact({ onLogout, onNavigateToDashboard }: ContactProp
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
