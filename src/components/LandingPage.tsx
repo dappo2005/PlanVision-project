@@ -59,10 +59,37 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       return;
     }
 
-    // Simple validation for demo
-    onLogin();
-    setLoginEmail("");
-    setLoginPassword("");
+    // Call backend API
+    const loginData = {
+      username: loginEmail,
+      password: loginPassword
+    };
+
+    fetch('http://localhost:5000/api/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(loginData)
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.message || data.user_id) {
+          // Login sukses
+          console.log("Login successful:", data);
+          // Store user data to localStorage
+          localStorage.setItem('user', JSON.stringify(data));
+          onLogin();
+          setLoginEmail("");
+          setLoginPassword("");
+        } else if (data.error) {
+          setLoginError(data.error);
+        }
+      })
+      .catch(error => {
+        console.error('Login error:', error);
+        setLoginError("Koneksi ke server gagal. Pastikan backend running di http://localhost:5000");
+      });
   };
 
   const handleRegister = (e: React.FormEvent) => {
@@ -96,20 +123,48 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       return;
     }
 
-    // Simulate registration success
-    setRegisterSuccess(true);
-    setTimeout(() => {
-      // Auto switch to login tab after registration
-      setActiveTab("login");
-      setLoginEmail(registerEmail);
-      setRegisterName("");
-      setRegisterEmail("");
-      setRegisterPhone("");
-      setRegisterPassword("");
-      setRegisterConfirmPassword("");
-      setAcceptTerms(false);
-      setRegisterSuccess(false);
-    }, 2000);
+    // Call backend API
+    const registerData = {
+      nama: registerName,
+      email: registerEmail,
+      username: registerEmail.split('@')[0], // Use email prefix as username
+      phone: registerPhone || null,
+      password: registerPassword
+    };
+
+    fetch('http://localhost:5000/api/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(registerData)
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.message) {
+          // Registration sukses
+          console.log("Registration successful:", data);
+          setRegisterSuccess(true);
+          setTimeout(() => {
+            // Auto switch to login tab after registration
+            setActiveTab("login");
+            setLoginEmail(registerEmail);
+            setRegisterName("");
+            setRegisterEmail("");
+            setRegisterPhone("");
+            setRegisterPassword("");
+            setRegisterConfirmPassword("");
+            setAcceptTerms(false);
+            setRegisterSuccess(false);
+          }, 2000);
+        } else if (data.error) {
+          setRegisterError(data.error);
+        }
+      })
+      .catch(error => {
+        console.error('Registration error:', error);
+        setRegisterError("Koneksi ke server gagal. Pastikan backend running di http://localhost:5000");
+      });
   };
 
   const handleForgotPassword = () => {

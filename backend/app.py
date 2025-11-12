@@ -8,8 +8,10 @@ import numpy as np
 import time
 from PIL import Image
 import io
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS untuk semua routes
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 
 # Load ML model at startup
@@ -61,7 +63,7 @@ def get_db_connection():
 def register_user():
     """
     API untuk mendaftarkan pengguna baru (Petani).
-    Menerima data JSON: nama, email, username, password.
+    Menerima data JSON: nama, email, username, phone, password.
     """
     conn = None
     cursor = None
@@ -71,10 +73,12 @@ def register_user():
         nama = data.get('nama')
         email = data.get('email')
         username = data.get('username')
+        phone = data.get('phone')
         password = data.get('password')
         
+        # Validasi fields yang wajib
         if not nama or not email or not username or not password:
-            return jsonify({"error": "Data tidak lengkap"}), 400
+            return jsonify({"error": "Nama, email, username, dan password wajib diisi"}), 400
 
         # 2. Hash password
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
@@ -86,20 +90,25 @@ def register_user():
             
         cursor = conn.cursor()
 
-        # 4. Eksekusi query SQL
-        query = "INSERT INTO User (nama, email, username, password, role) VALUES (%s, %s, %s, %s, %s)"
-        values = (nama, email, username, hashed_password, 'petani')
+        # 4. Eksekusi query SQL dengan fields baru
+        query = "INSERT INTO User (nama, email, username, phone, password, role, status_akun) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+        values = (nama, email, username, phone or None, hashed_password, 'user', 'aktif')
 
         cursor.execute(query, values)
         conn.commit()
 
         # 5. Kirim respons sukses
-        return jsonify({"message": f"Registrasi sukses untuk user: {username}"}), 201
+        return jsonify({
+            "message": f"Registrasi sukses untuk user: {username}",
+            "email": email,
+            "username": username
+        }), 201
 
     except mysql.connector.Error as err:
         # Tangani error spesifik (misal: duplicate entry)
         if err.errno == 1062:  # Duplicate entry
-            return jsonify({"error": "Email atau username sudah terdaftar"}), 409
+            field = "Email" if "email" in str(err) else "Username"
+            return jsonify({"error": f"{field} sudah terdaftar"}), 409
         return jsonify({"error": str(err)}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -179,8 +188,11 @@ def login_user():
                 # Password cocok!
                 return jsonify({
                     "message": f"Login sukses. Selamat datang, {user['nama']}!",
-                    "user_id": user['user_id'],
+                    "user_id": user['id'],
                     "nama": user['nama'],
+                    "email": user['email'],
+                    "username": user['username'],
+                    "phone": user['phone'],
                     "role": user['role'],
                     "status": user['status_akun']
                 }), 200
@@ -270,4 +282,4 @@ def predict_disease():
 # --- Menjalankan Aplikasi ---
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(debug=True, port=port)
+    app.run(debug=False, port=port)
