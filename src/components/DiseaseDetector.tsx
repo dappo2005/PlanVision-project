@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Upload, Camera, AlertCircle, CheckCircle2, Leaf, Droplets, Bug, Eye, ArrowLeft, Home, FileText, Download } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Badge } from "./ui/badge";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import jsPDF from "jspdf";
 
 interface DetectionResult {

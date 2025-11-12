@@ -8,6 +8,7 @@ import { Checkbox } from "./ui/checkbox";
 import { Separator } from "./ui/separator";
 import { Leaf, Camera, Network, BarChart3, FileText, Cloud, Linkedin, Github, Mail, Eye, EyeOff, User, Phone, Lock, AlertCircle, CheckCircle2, Instagram } from "lucide-react";
 import { useState } from "react";
+import React from "react";
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -140,54 +141,33 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       name: "Daffa Maulana KAL",
       role: "Project Manager",
       expertise: "Backend Developer",
-      // avatar can be JSX — will be rendered where member.avatar is used
-      avatar: (
-        <img
-          src="daffa.jpeg"
-          alt="daffa.jpeg"
-          className="w-full h-full rounded-full object-cover"
-        />
-      ),
-      color: "bg-gradient-to-br from-[#2ECC71] to-[#27AE60]"
+      avatar: "DM",
+      color: "bg-gradient-to-br from-[#2ECC71] to-[#27AE60]",
+      photo: "/images/team/daffa.jpeg"
     },
     {
       name: "Aisyah Putri Harmelia",
       role: "Frontend Developer",
       expertise: "Data Analyst",
-      avatar: (
-        <img
-          src="ais.jpeg"
-          alt="ais.jpeg"
-          className="w-full h-full rounded-full object-cover"
-        />
-      ),
-      color: "bg-gradient-to-br from-[#F39C12] to-[#E67E22]"
+      avatar: "AP",
+      color: "bg-gradient-to-br from-[#F39C12] to-[#E67E22]",
+      photo: "/images/team/ais.jpeg"
     },
     {
       name: "Refael Tresia Sibarani",
       role: "Business Analyst",
       expertise: "Requirement Engineer",
-      avatar: (
-        <img
-          src="refa.jpeg"
-          alt="refa.jpeg"
-          className="w-full h-full rounded-full object-cover"
-        />
-      ),
-      color: "bg-gradient-to-br from-[#2ECC71] to-[#F39C12]"
+      avatar: "RT",
+      color: "bg-gradient-to-br from-[#2ECC71] to-[#F39C12]",
+      photo: "/images/team/refa.jpeg"
     },
     {
       name: "Imam Yanif",
       role: "Database Analyst",
       expertise: "Deployment Specialist",
-      avatar: (
-        <img
-          src="imam.jpeg"
-          alt="imam.jpeg"
-          className="w-full h-full rounded-full object-cover"
-        />
-      ),
-      color: "bg-gradient-to-br from-[#E67E22] to-[#D35400]"
+      avatar: "IY",
+      color: "bg-gradient-to-br from-[#E67E22] to-[#D35400]",
+      photo: "/images/team/imam.jpeg"
     }
   ];
 
@@ -749,32 +729,50 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
-            {teamMembers.map((member, index) => (
-              <Card 
-                key={index}
-                className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border-gray-200"
-              >
-                <CardContent className="p-6 text-center">
-                  <div className={`w-24 h-24 ${member.color} rounded-full flex items-center justify-center text-white mx-auto mb-4 text-2xl group-hover:scale-110 transition-transform`}>
-                    {member.avatar}
-                  </div>
-                  <h3 className="text-gray-900 mb-1">{member.name}</h3>
-                  <p className="text-[#2ECC71] mb-1">{member.role}</p>
-                  <p className="text-gray-600">{member.expertise}</p>
-                  <div className="flex justify-center gap-3 mt-4">
-                    <button className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-[#2ECC71] hover:text-white transition-colors">
-                      <Github className="w-4 h-4" />
-                    </button>
-                    <button className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-[#2ECC71] hover:text-white transition-colors">
-                      <Mail className="w-4 h-4" />
-                    </button>
-                    <button className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-[#2ECC71] hover:text-white transition-colors">
-                      <Instagram className="w-4 h-4" />
-                    </button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {teamMembers.map((member, index) => {
+              const [imageError, setImageError] = useState(false);
+              return (
+                <Card 
+                  key={index}
+                  className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border-gray-200"
+                >
+                  <CardContent className="p-6 text-center">
+                    <div className="relative w-24 h-24 mx-auto mb-4 group-hover:scale-110 transition-transform">
+                      <div className={`w-24 h-24 ${member.color} rounded-full flex items-center justify-center text-white text-2xl overflow-hidden border-4 border-white shadow-lg relative`}>
+                        {member.photo && !imageError ? (
+                          <img
+                            src={member.photo}
+                            alt={member.name}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            style={{
+                              objectPosition: 'center 25%',
+                            }}
+                            onError={() => setImageError(true)}
+                            loading="lazy"
+                          />
+                        ) : (
+                          <span className="absolute inset-0 flex items-center justify-center z-10">{member.avatar}</span>
+                        )}
+                      </div>
+                    </div>
+                    <h3 className="text-gray-900 mb-1">{member.name}</h3>
+                    <p className="text-[#2ECC71] mb-1">{member.role}</p>
+                    <p className="text-gray-600">{member.expertise}</p>
+                    <div className="flex justify-center gap-3 mt-4">
+                      <button className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-[#2ECC71] hover:text-white transition-colors">
+                        <Github className="w-4 h-4" />
+                      </button>
+                      <button className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-[#2ECC71] hover:text-white transition-colors">
+                        <Mail className="w-4 h-4" />
+                      </button>
+                      <button className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-[#2ECC71] hover:text-white transition-colors">
+                        <Instagram className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
       </section>
