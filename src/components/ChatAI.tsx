@@ -231,22 +231,22 @@ export default function ChatAI({
 
             {/* Quick Questions Sidebar */}
             <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+              <Card className="shadow-md">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg">
                     <Sparkles className="w-5 h-5 text-[#F39C12]" />
                     Pertanyaan Populer
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2">
+                <CardContent className="space-y-3">
                   {quickQuestions.map((question, index) => (
                     <Button
                       key={index}
                       variant="outline"
-                      className="w-full justify-start text-left h-auto py-3 hover:bg-green-50 hover:border-[#2ECC71]"
+                      className="w-full justify-start text-left h-auto py-3 px-4 rounded-lg border-2 border-gray-200 hover:bg-gradient-to-r hover:from-green-50 hover:to-orange-50 hover:border-[#2ECC71] hover:shadow-sm transition-all duration-200 text-sm font-normal whitespace-normal"
                       onClick={() => handleQuickQuestion(question)}
                     >
-                      {question}
+                      <span className="text-gray-700">{question}</span>
                     </Button>
                   ))}
                 </CardContent>
