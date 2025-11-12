@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
@@ -14,34 +14,58 @@ interface ContactProps {
 
 const teamMembers = [
   {
-    name: "Daffa",
-    role: "Project Manager & IoT Specialist",
-    email: "daffa@plantvision.id",
-    phone: "+62 812-3456-7890",
-    instagram: "@daffa.dev"
+    name: "Daffa Maulana KAL",
+    role: "Project Manager, Backend Dev",
+    email: "daf.maula123@gmail.com",
+    phone: "+6281933311580",
+    instagram: "@dafa_mkal"
   },
   {
-    name: "Aisyah",
-    role: "ML Engineer & Data Scientist",
-    email: "aisyah@plantvision.id",
-    phone: "+62 813-4567-8901",
-    instagram: "@aisyah.tech"
+    name: "Aisyah Putri Harmelia",
+    role: "Frontend Dev, Data Analis",
+    email: "aisyahputrihhh16@gmail.com",
+    phone: "+6287805987309",
+    instagram: "@aisyahphr"
   },
   {
-    name: "Refael",
-    role: "Full Stack Developer",
-    email: "refael@plantvision.id",
-    phone: "+62 814-5678-9012",
-    instagram: "@refael.codes"
+    name: "Refael Tresia Sibarani",
+    role: "Business Analyst, Requirement Engineer",
+    email: "tersia.30323@gmail.com",
+    phone: "+6282274044572",
+    instagram: "@neon.ren"
   },
   {
-    name: "Imam",
-    role: "UI/UX Designer & Frontend Dev",
-    email: "imam@plantvision.id",
-    phone: "+62 815-6789-0123",
-    instagram: "@imam.design"
+    name: "Imam Yanif",
+    role: "Database Analyst, Deployment",
+    email: "imamyanif05@gmail.com",
+    phone: "+6281317466699",
+    instagram: "@imam_y4224"
   }
 ];
+
+// Helper function to convert phone number to WhatsApp format
+const formatPhoneForWhatsApp = (phone: string): string => {
+  // Remove all non-digit characters except +
+  let cleaned = phone.replace(/[^\d+]/g, '');
+  
+  // If starts with +62, keep it
+  if (cleaned.startsWith('+62')) {
+    return cleaned.substring(1); // Remove +, keep 62
+  }
+  
+  // If starts with 62, keep it
+  if (cleaned.startsWith('62')) {
+    return cleaned;
+  }
+  
+  // If starts with 0, replace with 62
+  if (cleaned.startsWith('0')) {
+    return '62' + cleaned.substring(1);
+  }
+  
+  // Otherwise, assume it's Indonesian number and add 62
+  return '62' + cleaned;
+};
 
 export default function Contact({ onLogout, onNavigateToDashboard }: ContactProps) {
   const [formData, setFormData] = useState({
@@ -144,8 +168,12 @@ export default function Contact({ onLogout, onNavigateToDashboard }: ContactProp
                   <Mail className="w-8 h-8 text-white" />
                 </div>
                 <h3 className="text-gray-900 mb-2">Email</h3>
-                <p className="text-gray-600 mb-2">info@plantvision.id</p>
-                <p className="text-gray-600">support@plantvision.id</p>
+                <a 
+                  href="mailto:daf.maula123@gmail.com" 
+                  className="text-gray-600 mb-2 hover:text-[#2ECC71] hover:underline transition-colors cursor-pointer block"
+                >
+                  daf.maula123@gmail.com
+                </a>
               </CardContent>
             </Card>
 
@@ -154,9 +182,13 @@ export default function Contact({ onLogout, onNavigateToDashboard }: ContactProp
                 <div className="w-16 h-16 bg-gradient-to-br from-[#F39C12] to-[#E67E22] rounded-full flex items-center justify-center mx-auto mb-4">
                   <Phone className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-gray-900 mb-2">Telepon</h3>
-                <p className="text-gray-600 mb-2">+62 21 1234 5678</p>
-                <p className="text-gray-600">+62 800 123 4567 (Toll Free)</p>
+                <h3 className="text-gray-900 mb-2">Telepon / WhatsApp</h3>
+                <a 
+                  href={`https://wa.me/${formatPhoneForWhatsApp('+6281933311580')}`}
+                  className="text-gray-600 hover:text-[#25D366] hover:underline transition-colors cursor-pointer block"
+                >
+                  08193311580
+                </a>
               </CardContent>
             </Card>
 
@@ -166,8 +198,7 @@ export default function Contact({ onLogout, onNavigateToDashboard }: ContactProp
                   <MapPin className="w-8 h-8 text-white" />
                 </div>
                 <h3 className="text-gray-900 mb-2">Alamat</h3>
-                <p className="text-gray-600 mb-2">Gedung Teknologi Pertanian</p>
-                <p className="text-gray-600">Jl. Inovasi No. 123, Jakarta 12345</p>
+                <p className="text-gray-600">Sekolah Vokasi IPB University</p>
               </CardContent>
             </Card>
           </div>
@@ -372,24 +403,35 @@ export default function Contact({ onLogout, onNavigateToDashboard }: ContactProp
               {teamMembers.map((member, index) => (
                 <Card key={index} className="hover:shadow-xl transition-all hover:-translate-y-1">
                   <CardContent className="p-6">
-                    <div className="w-16 h-16 bg-gradient-to-br from-[#2ECC71] to-[#F39C12] rounded-full flex items-center justify-center text-white text-2xl mx-auto mb-4">
-                      {member.name.charAt(0)}
+                    <div className="w-16 h-16 bg-gradient-to-br from-[#2ECC71] to-[#F39C12] rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
+                      {member.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
                     </div>
-                    <h3 className="text-gray-900 text-center mb-1">{member.name}</h3>
-                    <p className="text-[#2ECC71] text-center mb-4">{member.role}</p>
+                    <h3 className="text-gray-900 text-center mb-1 text-sm font-semibold leading-tight">{member.name}</h3>
+                    <p className="text-[#2ECC71] text-center mb-4 text-xs">{member.role}</p>
                     <div className="space-y-2 text-gray-600">
-                      <div className="flex items-center gap-2">
-                        <Mail className="w-4 h-4 text-[#2ECC71]" />
-                        <span className="truncate">{member.email}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Phone className="w-4 h-4 text-[#F39C12]" />
-                        <span>{member.phone}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Instagram className="w-4 h-4 text-pink-500" />
-                        <span>{member.instagram}</span>
-                      </div>
+                      <a 
+                        href={`mailto:${member.email}`}
+                        className="flex items-start gap-2 hover:text-[#2ECC71] transition-colors cursor-pointer"
+                      >
+                        <Mail className="w-4 h-4 text-[#2ECC71] mt-0.5 flex-shrink-0" />
+                        <span className="text-xs break-words">{member.email}</span>
+                      </a>
+                      <a 
+                        href={`https://wa.me/${formatPhoneForWhatsApp(member.phone)}`}
+                        className="flex items-center gap-2 hover:text-[#25D366] transition-colors cursor-pointer"
+                      >
+                        <Phone className="w-4 h-4 text-[#F39C12] flex-shrink-0" />
+                        <span className="text-xs">{member.phone}</span>
+                      </a>
+                      <a 
+                        href={`https://instagram.com/${member.instagram.replace('@', '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 hover:text-pink-500 transition-colors cursor-pointer"
+                      >
+                        <Instagram className="w-4 h-4 text-pink-500 flex-shrink-0" />
+                        <span className="text-xs">{member.instagram}</span>
+                      </a>
                     </div>
                   </CardContent>
                 </Card>
