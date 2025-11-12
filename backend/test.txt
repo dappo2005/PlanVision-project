@@ -1,0 +1,1 @@
+SELECT id, nama, email, username, role, created_at FROM User WHERE username = 'petani_budi';
