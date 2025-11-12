@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Upload, Camera, AlertCircle, CheckCircle2, Leaf, Droplets, Bug, Eye, ArrowLeft, Home } from "lucide-react";
+import { Upload, Camera, AlertCircle, CheckCircle2, Leaf, Droplets, Bug, Eye, ArrowLeft, Home, FileText, Download } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import { toast } from "sonner@2.0.3";
+import jsPDF from "jspdf";
 
 interface DetectionResult {
   disease: string;
@@ -221,6 +222,315 @@ export default function DiseaseDetector({
     return colors[severity as keyof typeof colors];
   };
 
+  const exportToPDF = async () => {
+    if (!result) {
+      toast.error("Tidak ada hasil deteksi untuk diekspor", {
+        description: "Silakan upload foto dan lakukan deteksi terlebih dahulu"
+      });
+      return;
+    }
+
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      let yPosition = margin;
+
+      // Header with gradient effect
+      doc.setFillColor(46, 204, 113); // #2ECC71
+      doc.rect(0, 0, pageWidth, 45, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.text("PlantVision", margin, 28);
+      
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "normal");
+      doc.text("Laporan Hasil Deteksi Penyakit Daun Jeruk", margin, 38);
+
+      yPosition = 55;
+
+      // Date
+      doc.setTextColor(100, 100, 100);
+      doc.setFontSize(10);
+      const currentDate = new Date().toLocaleDateString('id-ID', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      doc.text(`Tanggal: ${currentDate}`, margin, yPosition);
+      yPosition += 12;
+
+      // Disease Information Section
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text("Hasil Deteksi", margin, yPosition);
+      yPosition += 10;
+
+      // Calculate available width for text (leave space for image on right if exists)
+      const imageAreaWidth = selectedImage ? 75 : 0;
+      const textAreaWidth = pageWidth - 2 * margin - imageAreaWidth;
+
+      // Disease Name
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      const diseaseLines = doc.splitTextToSize(result.disease, textAreaWidth);
+      if (Array.isArray(diseaseLines)) {
+        diseaseLines.forEach((line: string) => {
+          doc.text(line, margin, yPosition);
+          yPosition += 7;
+        });
+      } else {
+        doc.text(diseaseLines, margin, yPosition);
+        yPosition += 7;
+      }
+      yPosition += 5;
+
+      // Severity and Confidence
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      const severityText = `Tingkat Keparahan: ${result.severity.toUpperCase()}`;
+      doc.text(severityText, margin, yPosition);
+      yPosition += 7;
+
+      const confidenceText = `Tingkat Keyakinan: ${result.confidence}%`;
+      doc.text(confidenceText, margin, yPosition);
+      yPosition += 10;
+
+      // Description
+      doc.setFontSize(11);
+      // Use textAreaWidth to avoid overlapping with image
+      const descriptionLines = doc.splitTextToSize(result.description, textAreaWidth);
+      if (Array.isArray(descriptionLines)) {
+        descriptionLines.forEach((line: string) => {
+          doc.text(line, margin, yPosition);
+          yPosition += 7;
+        });
+      } else {
+        doc.text(descriptionLines, margin, yPosition);
+        yPosition += 7;
+      }
+      yPosition += 10;
+
+      // Add uploaded image on the right side (after text content starts)
+      if (selectedImage) {
+        try {
+          // Create a promise to load the image
+          const loadImage = (src: string): Promise<HTMLImageElement> => {
+            return new Promise((resolve, reject) => {
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+              img.onload = () => resolve(img);
+              img.onerror = reject;
+              img.src = src;
+            });
+          };
+
+          const img = await loadImage(selectedImage);
+          
+          // Calculate image dimensions to fit in PDF
+          const maxWidth = 60;
+          const maxHeight = 80;
+          let imgWidth = img.width;
+          let imgHeight = img.height;
+          
+          // Scale image to fit
+          const ratio = Math.min(maxWidth / imgWidth, maxHeight / imgHeight);
+          imgWidth = imgWidth * ratio;
+          imgHeight = imgHeight * ratio;
+          
+          // Position image on the right side, starting from after header
+          const imageX = pageWidth - margin - imgWidth;
+          const imageY = 55; // Start from same position as date
+          
+          // Draw a border around image
+          doc.setDrawColor(200, 200, 200);
+          doc.setLineWidth(0.5);
+          doc.rect(imageX - 2, imageY - 2, imgWidth + 4, imgHeight + 15);
+          
+          // Add image to PDF
+          doc.addImage(selectedImage, 'JPEG', imageX, imageY, imgWidth, imgHeight);
+          
+          // Add label below image
+          doc.setFontSize(8);
+          doc.setTextColor(100, 100, 100);
+          doc.setFont("helvetica", "normal");
+          doc.text("Foto Daun", imageX + imgWidth / 2, imageY + imgHeight + 8, { align: 'center' });
+        } catch (imgError) {
+          console.error("Error adding image to PDF:", imgError);
+          // Continue without image if there's an error
+        }
+      }
+
+      // Check if we need a new page before symptoms
+      if (yPosition > pageHeight - 80) {
+        doc.addPage();
+        yPosition = margin;
+      }
+
+      // Symptoms Section
+      // Note: Image area is only at top, so full width can be used for content below
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(220, 53, 69); // Red
+      doc.text("Gejala yang Terlihat", margin, yPosition);
+      yPosition += 10;
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      // Full width available for symptoms (image is only at top)
+      const contentWidth = pageWidth - 2 * margin;
+      const lineHeight = 6;
+      result.symptoms.forEach((symptom, index) => {
+        if (yPosition > pageHeight - 40) {
+          doc.addPage();
+          yPosition = margin;
+        }
+        // Use simple dash instead of bullet for better compatibility
+        const symptomText = `- ${symptom}`;
+        // Split text and add line by line to ensure proper rendering
+        const symptomLines = doc.splitTextToSize(symptomText, contentWidth);
+        if (Array.isArray(symptomLines)) {
+          symptomLines.forEach((line: string, lineIndex: number) => {
+            if (yPosition > pageHeight - 40) {
+              doc.addPage();
+              yPosition = margin;
+            }
+            doc.text(line, margin, yPosition);
+            yPosition += lineHeight;
+          });
+        } else {
+          doc.text(symptomLines, margin, yPosition);
+          yPosition += lineHeight;
+        }
+        yPosition += 2; // Add spacing between items
+      });
+      yPosition += 5;
+
+      // Check if we need a new page before treatment
+      if (yPosition > pageHeight - 80) {
+        doc.addPage();
+        yPosition = margin;
+      }
+
+      // Treatment Section
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(40, 167, 69); // Green
+      doc.text("Cara Pengobatan", margin, yPosition);
+      yPosition += 10;
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      result.treatment.forEach((treatment, index) => {
+        if (yPosition > pageHeight - 40) {
+          doc.addPage();
+          yPosition = margin;
+        }
+        // Use simple number instead of checkmark for better compatibility
+        const treatmentText = `${index + 1}. ${treatment}`;
+        // Split text and add line by line to ensure proper rendering
+        const treatmentLines = doc.splitTextToSize(treatmentText, contentWidth);
+        if (Array.isArray(treatmentLines)) {
+          treatmentLines.forEach((line: string, lineIndex: number) => {
+            if (yPosition > pageHeight - 40) {
+              doc.addPage();
+              yPosition = margin;
+            }
+            doc.text(line, margin, yPosition);
+            yPosition += lineHeight;
+          });
+        } else {
+          doc.text(treatmentLines, margin, yPosition);
+          yPosition += lineHeight;
+        }
+        yPosition += 2; // Add spacing between items
+      });
+      yPosition += 5;
+
+      // Check if we need a new page before prevention
+      if (yPosition > pageHeight - 80) {
+        doc.addPage();
+        yPosition = margin;
+      }
+
+      // Prevention Section
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(0, 123, 255); // Blue
+      doc.text("Pencegahan", margin, yPosition);
+      yPosition += 10;
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      result.prevention.forEach((prev, index) => {
+        if (yPosition > pageHeight - 40) {
+          doc.addPage();
+          yPosition = margin;
+        }
+        // Use simple number instead of arrow for better compatibility
+        const prevText = `${index + 1}. ${prev}`;
+        // Split text and add line by line to ensure proper rendering
+        const prevLines = doc.splitTextToSize(prevText, contentWidth);
+        if (Array.isArray(prevLines)) {
+          prevLines.forEach((line: string, lineIndex: number) => {
+            if (yPosition > pageHeight - 40) {
+              doc.addPage();
+              yPosition = margin;
+            }
+            doc.text(line, margin, yPosition);
+            yPosition += lineHeight;
+          });
+        } else {
+          doc.text(prevLines, margin, yPosition);
+          yPosition += lineHeight;
+        }
+        yPosition += 2; // Add spacing between items
+      });
+
+      // Footer on all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text(
+          `Halaman ${i} dari ${totalPages}`,
+          pageWidth / 2,
+          pageHeight - 10,
+          { align: 'center' }
+        );
+        doc.text(
+          "© 2025 PlantVision - Platform IoT & Machine Learning untuk Deteksi Penyakit Daun Jeruk",
+          pageWidth / 2,
+          pageHeight - 5,
+          { align: 'center' }
+        );
+      }
+
+      // Save PDF
+      const fileName = `Hasil_Deteksi_${result.disease.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+
+      toast.success("PDF berhasil diekspor", {
+        description: `File ${fileName} telah diunduh`
+      });
+    } catch (error) {
+      console.error("Error exporting PDF:", error);
+      toast.error("Gagal mengekspor PDF", {
+        description: "Terjadi kesalahan saat membuat file PDF"
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-orange-50">
       <div className="container mx-auto px-4 py-12">
@@ -327,10 +637,22 @@ export default function DiseaseDetector({
             <Card className="relative overflow-hidden">
               <div className="absolute bottom-0 left-0 w-32 h-32 orange-slice opacity-10 -ml-16 -mb-16" />
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Leaf className="w-5 h-5 text-[#F39C12]" />
-                  Hasil Deteksi
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Leaf className="w-5 h-5 text-[#F39C12]" />
+                    Hasil Deteksi
+                  </CardTitle>
+                  {result && (
+                    <Button
+                      onClick={exportToPDF}
+                      className="bg-[#2ECC71] hover:bg-[#27AE60] text-white shadow-md hover:shadow-lg transition-all"
+                      size="sm"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export PDF
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {!result ? (

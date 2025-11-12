@@ -46,6 +46,7 @@ import {
   Cell,
 } from "recharts";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { useState } from "react";
 
 interface DashboardProps {
   onLogout: () => void;
@@ -54,6 +55,51 @@ interface DashboardProps {
   onNavigateToNews: () => void;
   onNavigateToFeedback: () => void;
   onNavigateToContact: () => void;
+}
+
+interface TeamMember {
+  name: string;
+  role: string;
+  expertise: string;
+  avatar: string;
+  color: string;
+  photo?: string;
+}
+
+function TeamMemberCard({ member }: { member: TeamMember }) {
+  const [imageError, setImageError] = useState(false);
+  
+  return (
+    <Card className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-2">
+      <CardContent className="p-6 text-center">
+        <div className="relative w-24 h-24 mx-auto mb-4 group-hover:scale-110 transition-transform">
+          <div
+            className={`w-24 h-24 ${member.color} rounded-full flex items-center justify-center text-white text-2xl overflow-hidden border-4 border-white shadow-lg`}
+          >
+            {member.photo && !imageError ? (
+              <img
+                src={member.photo}
+                alt={member.name}
+                className="w-full h-full object-cover"
+                onError={() => setImageError(true)}
+              />
+            ) : (
+              <span>{member.avatar}</span>
+            )}
+          </div>
+        </div>
+        <h3 className="text-gray-900 mb-1 font-semibold">
+          {member.name}
+        </h3>
+        <p className="text-[#2ECC71] mb-1 font-medium">
+          {member.role}
+        </p>
+        <p className="text-gray-600 text-sm">
+          {member.expertise}
+        </p>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function Dashboard({
@@ -168,6 +214,7 @@ export default function Dashboard({
       expertise: "Backend Developer",
       avatar: "DM",
       color: "bg-gradient-to-br from-[#2ECC71] to-[#27AE60]",
+      photo: "/images/team/daffa.jpeg",
     },
     {
       name: "Aisyah Putri Harmelia",
@@ -175,6 +222,7 @@ export default function Dashboard({
       expertise: "Data Analyst",
       avatar: "AP",
       color: "bg-gradient-to-br from-[#F39C12] to-[#E67E22]",
+      photo: "/images/team/ais.jpeg",
     },
     {
       name: "Refael Tresia Sibarani",
@@ -182,6 +230,7 @@ export default function Dashboard({
       expertise: "Requirement Engineer",
       avatar: "RT",
       color: "bg-gradient-to-br from-[#2ECC71] to-[#F39C12]",
+      photo: "/images/team/refa.jpeg",
     },
     {
       name: "Imam Yanif",
@@ -189,6 +238,7 @@ export default function Dashboard({
       expertise: "Deployment Specialist",
       avatar: "IY",
       color: "bg-gradient-to-br from-[#E67E22] to-[#D35400]",
+      photo: "/images/team/imam.jpeg",
     },
   ];
 
@@ -259,10 +309,10 @@ export default function Dashboard({
         }}
       />
 
-      {/* Hero Section */}
+      {/* Hero Section - Fullscreen */}
       <section
         id="beranda"
-        className="relative bg-gradient-to-br from-[#2ECC71] to-[#F39C12] text-white py-20 overflow-hidden"
+        className="relative bg-gradient-to-br from-[#2ECC71] to-[#F39C12] text-white min-h-screen flex items-center justify-center overflow-hidden"
       >
         <div className="absolute inset-0 opacity-10">
           <div
@@ -278,7 +328,7 @@ export default function Dashboard({
         <div className="absolute top-10 right-10 w-40 h-40 rounded-full border-4 border-white/20 opacity-30" />
         <div className="absolute bottom-10 left-10 w-56 h-56 rounded-full border-4 border-white/20 opacity-20" />
         <div className="absolute top-1/2 left-1/3 w-32 h-32 orange-slice opacity-20" />
-        <div className="container mx-auto px-4 relative">
+        <div className="container mx-auto px-4 relative z-10">
           <div className="max-w-4xl mx-auto text-center space-y-6">
             <h1 className="text-5xl md:text-6xl">
               Deteksi Penyakit Daun Jeruk Secara Cepat dan
@@ -289,21 +339,32 @@ export default function Dashboard({
               membantu petani mendeteksi penyakit daun jeruk
               secara real-time.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-              <Button
-                size="lg"
-                onClick={onNavigateToDetector}
-                className="bg-white text-[#2ECC71] hover:bg-gray-100 shadow-xl"
-              >
-                <Camera className="w-5 h-5 mr-2" />
-                Mulai Sekarang
-              </Button>
+            <div className="flex flex-col items-center gap-4 pt-4">
+              {/* Primary Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center w-full">
+                <Button
+                  size="lg"
+                  onClick={onNavigateToDetector}
+                  className="bg-white text-[#2ECC71] hover:bg-gray-100 shadow-xl w-full sm:w-auto min-w-[180px]"
+                >
+                  <Camera className="w-5 h-5 mr-2" />
+                  Mulai Sekarang
+                </Button>
+              </div>
+              
+              {/* Secondary Action Button */}
               <Button
                 size="lg"
                 variant="outline"
-                className="border-white text-white hover:bg-white/10"
+                className="border-2 border-white/90 bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 hover:border-white hover:shadow-xl transition-all w-full sm:w-auto font-medium"
+                asChild
               >
-                Pelajari Lebih Lanjut
+                <a href="#tentang" className="flex items-center justify-center gap-2">
+                  Pelajari Lebih Lanjut
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </a>
               </Button>
             </div>
           </div>
@@ -383,14 +444,14 @@ export default function Dashboard({
                   Project Mentor
                 </div>
                 <p className="text-gray-700">
-                  Dr. Budi Santoso, M.Kom
+                  Bintang Aprilio S.Tr. Kom. 
                 </p>
               </div>
               <div className="text-center">
                 <div className="text-3xl text-[#3498DB] mb-2">
                   Owner
                 </div>
-                <p className="text-gray-700">Tim G1 - FTUI</p>
+                <p className="text-gray-700">Tim BEBAS G1 - TEK IPB</p>
               </div>
             </div>
           </div>
@@ -697,33 +758,13 @@ export default function Dashboard({
               Tim Pengembang
             </h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              Tim G1 - Ahli IoT & Computer Vision yang
+              Tim BEBAS G1 - Ahli IoT & Computer Vision yang
               berdedikasi
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
             {teamMembers.map((member, index) => (
-              <Card
-                key={index}
-                className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-2"
-              >
-                <CardContent className="p-6 text-center">
-                  <div
-                    className={`w-24 h-24 ${member.color} rounded-full flex items-center justify-center text-white mx-auto mb-4 text-2xl group-hover:scale-110 transition-transform`}
-                  >
-                    {member.avatar}
-                  </div>
-                  <h3 className="text-gray-900 mb-1">
-                    {member.name}
-                  </h3>
-                  <p className="text-[#2ECC71] mb-1">
-                    {member.role}
-                  </p>
-                  <p className="text-gray-600">
-                    {member.expertise}
-                  </p>
-                </CardContent>
-              </Card>
+              <TeamMemberCard key={index} member={member} />
             ))}
           </div>
         </div>
@@ -938,8 +979,8 @@ export default function Dashboard({
               <h4 className="text-white mb-4">Hubungi Kami</h4>
               <ul className="space-y-2 mb-4">
                 <li>Email: info@plantvision.id</li>
-                <li>Tim G1 - IoT & Computer Vision</li>
-                <li>Fakultas Teknik</li>
+                <li>Tim BEBAS G1 - IoT & Computer Vision</li>
+                <li>TEKOMk</li>
                 <li>IPB University</li>
               </ul>
               <Button
