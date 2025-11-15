@@ -127,9 +127,10 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
     const registerData = {
       nama: registerName,
       email: registerEmail,
-      username: registerEmail.split('@')[0], // Use email prefix as username
+      username: registerEmail.split('@')[0], // optional, backend generate unique username juga
       phone: registerPhone || null,
-      password: registerPassword
+      password: registerPassword,
+      acceptTerms: true
     };
 
     fetch('http://localhost:5000/api/register', {

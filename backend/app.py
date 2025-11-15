@@ -36,12 +36,15 @@ def load_model():
 load_model()
 
 # --- KONFIGURASI KONEKSI DATABASE ---
-# Ganti dengan kredensial Anda
-DB_HOST = 'localhost'
-DB_PORT = '3306'
-DB_USER = 'root'
-DB_PASSWORD = 'D@ffa_2005'  # GANTI INI
-DB_NAME = 'plantvision_db'
+# Bisa dikonfigurasi melalui environment variables agar konsisten dengan DB Anda
+# Contoh (PowerShell): $env:DB_NAME = "planvision"
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_PORT = os.getenv('DB_PORT', '3306')
+DB_USER = os.getenv('DB_USER', 'root')
+DB_PASSWORD = os.getenv('DB_PASSWORD', 'D@ffa_2005')
+DB_NAME = os.getenv('DB_NAME', 'plantvision_db')
+
+print(f"[Backend] Connecting to MySQL DB='{DB_NAME}' on {DB_HOST}:{DB_PORT} as {DB_USER}")
 
 def get_db_connection():
     """Fungsi helper untuk membuat koneksi database"""
@@ -58,6 +61,20 @@ def get_db_connection():
         print(f"Error connecting to MySQL: {e}")
         return None
 
+def generate_unique_username(base: str, cursor) -> str:
+    """Generate username unik berdasarkan base (tanpa domain). Tambah angka jika bentrok."""
+    # Bersihkan base ke huruf/angka/underscore
+    import re
+    cleaned = re.sub(r'[^a-zA-Z0-9_]', '', base.lower()) or 'user'
+    candidate = cleaned
+    suffix = 1
+    while True:
+        cursor.execute("SELECT 1 FROM User WHERE username=%s LIMIT 1", (candidate,))
+        if cursor.fetchone() is None:
+            return candidate
+        candidate = f"{cleaned}{suffix}"
+        suffix += 1
+
 # --- API REGISTRASI (F-02) ---
 @app.route('/api/register', methods=['POST'])
 def register_user():
@@ -72,16 +89,19 @@ def register_user():
         data = request.json
         nama = data.get('nama')
         email = data.get('email')
-        username = data.get('username')
         phone = data.get('phone')
         password = data.get('password')
+        accept_terms = data.get('acceptTerms')  # Boolean dari frontend
         
         # Validasi fields yang wajib
-        if not nama or not email or not username or not password:
-            return jsonify({"error": "Nama, email, username, dan password wajib diisi"}), 400
+        if not nama or not email or not password:
+            return jsonify({"error": "Nama, email, dan password wajib diisi"}), 400
+        if not isinstance(accept_terms, bool) or not accept_terms:
+            return jsonify({"error": "Syarat & ketentuan harus disetujui (acceptTerms)"}), 400
 
         # 2. Hash password
-        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        # Bcrypt menghasilkan bytes ASCII -> simpan sebagai string supaya login sederhana
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
         # 3. Dapatkan koneksi database
         conn = get_db_connection()
@@ -90,18 +110,29 @@ def register_user():
             
         cursor = conn.cursor()
 
-        # 4. Eksekusi query SQL dengan fields baru
-        query = "INSERT INTO User (nama, email, username, phone, password, role, status_akun) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-        values = (nama, email, username, phone or None, hashed_password, 'user', 'aktif')
+        # 4. Buat username unik (frontend tidak menyediakan eksplisit username)
+        email_local_part = (email.split('@')[0]) if '@' in email else email
+        username = generate_unique_username(email_local_part, cursor)
+
+        # 5. Eksekusi query SQL termasuk accept_terms
+        query = "INSERT INTO User (nama, email, username, phone, password, role, status_akun, accept_terms) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+        values = (nama, email, username, phone or None, hashed_password, 'user', 'aktif', 1)
 
         cursor.execute(query, values)
         conn.commit()
 
         # 5. Kirim respons sukses
+        user_id = cursor.lastrowid
         return jsonify({
             "message": f"Registrasi sukses untuk user: {username}",
+            "user_id": user_id,
+            "nama": nama,
             "email": email,
-            "username": username
+            "username": username,
+            "phone": phone,
+            "accept_terms": True,
+            "status_akun": "aktif",
+            "role": "user"
         }), 201
 
     except mysql.connector.Error as err:
@@ -132,11 +163,11 @@ def login_user():
     try:
         # 1. Ambil data JSON dari request
         data = request.json
-        username = data.get('username')
+        username_or_email = data.get('username')  # frontend kirim email di field ini
         password = data.get('password')
 
-        if not username or not password:
-            return jsonify({"error": "Username dan password diperlukan"}), 400
+        if not username_or_email or not password:
+            return jsonify({"error": "Username/email dan password diperlukan"}), 400
 
         # 2. Dapatkan koneksi database
         conn = get_db_connection()
@@ -146,10 +177,15 @@ def login_user():
         # Gunakan dictionary=True agar hasil query bisa diakses berdasarkan nama kolom
         cursor = conn.cursor(dictionary=True) 
 
-        # 3. Cari user berdasarkan username
-        query = "SELECT * FROM User WHERE username = %s"
-        cursor.execute(query, (username,))
+        # 3. Cari user baik dengan email maupun username (lebih toleran)
+        username_or_email = username_or_email.strip()
+        query = "SELECT * FROM User WHERE email = %s OR username = %s"
+        cursor.execute(query, (username_or_email, username_or_email))
         user = cursor.fetchone() # Ambil satu data user
+        try:
+            print(f"[Login] DB='{DB_NAME}', found={bool(user)} for '{username_or_email}'")
+        except Exception:
+            pass
 
         # 4. Jika user tidak ditemukan
         if not user:
@@ -158,43 +194,24 @@ def login_user():
         # 5. Bandingkan password
         try:
             # Debug: Print tipe data password dari database
-            print(f"Tipe data password dari DB: {type(user['password'])}")
-            print(f"Nilai password dari DB: {user['password']}")
-            
-            # Ambil password hash dari DB
-            hashed_password_from_db = user['password']
-            
-            # Jika password dari DB adalah bytes yang tersimpan sebagai string, konversi kembali ke bytes
-            if isinstance(hashed_password_from_db, str):
-                try:
-                    # Jika password disimpan sebagai string yang merepresentasikan bytes
-                    if hashed_password_from_db.startswith("b'") and hashed_password_from_db.endswith("'"):
-                        # Hapus b'' dan decode string
-                        hashed_password_from_db = eval(hashed_password_from_db)
-                    else:
-                        hashed_password_from_db = hashed_password_from_db.encode('utf-8')
-                except Exception as e:
-                    print(f"Error saat mengkonversi password: {str(e)}")
-                    raise
-
-            # Debug: Print tipe data setelah konversi
-            print(f"Tipe data password setelah konversi: {type(hashed_password_from_db)}")
-            
-            # Bandingkan password
-            password_match = bcrypt.checkpw(password.encode('utf-8'), hashed_password_from_db)
+            # Ambil password hash (sudah disimpan sebagai string ASCII)
+            stored_hash = user['password']
+            password_match = bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8'))
             print(f"Password match: {password_match}")
 
             if password_match:
                 # Password cocok!
+                user_id_val = user.get('user_id') or user.get('id')
+                status_val = user.get('status_akun') or user.get('status') or 'aktif'
                 return jsonify({
                     "message": f"Login sukses. Selamat datang, {user['nama']}!",
-                    "user_id": user['id'],
+                    "user_id": user_id_val,
                     "nama": user['nama'],
                     "email": user['email'],
                     "username": user['username'],
                     "phone": user['phone'],
                     "role": user['role'],
-                    "status": user['status_akun']
+                    "status": status_val
                 }), 200
             else:
                 return jsonify({"error": "Username atau password salah"}), 401
