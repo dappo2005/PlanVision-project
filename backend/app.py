@@ -87,6 +87,9 @@ def register_user():
     try:
         # 1. Ambil data JSON dari request
         data = request.json
+        if not data:
+            return jsonify({"error": "Invalid request data"}), 400
+        
         nama = data.get('nama')
         email = data.get('email')
         phone = data.get('phone')
@@ -163,6 +166,9 @@ def login_user():
     try:
         # 1. Ambil data JSON dari request
         data = request.json
+        if not data:
+            return jsonify({"error": "Invalid request data"}), 400
+        
         username_or_email = data.get('username')  # frontend kirim email di field ini
         password = data.get('password')
 
@@ -195,22 +201,24 @@ def login_user():
         try:
             # Debug: Print tipe data password dari database
             # Ambil password hash (sudah disimpan sebagai string ASCII)
-            stored_hash = user['password']
+            # Type assertion untuk Pylance - cursor dengan dictionary=True mengembalikan dict
+            user_data: dict = user  # type: ignore
+            stored_hash = str(user_data['password'])
             password_match = bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8'))
             print(f"Password match: {password_match}")
 
             if password_match:
                 # Password cocok!
-                user_id_val = user.get('user_id') or user.get('id')
-                status_val = user.get('status_akun') or user.get('status') or 'aktif'
+                user_id_val = user_data.get('user_id') or user_data.get('id')
+                status_val = user_data.get('status_akun') or user_data.get('status') or 'aktif'
                 return jsonify({
-                    "message": f"Login sukses. Selamat datang, {user['nama']}!",
+                    "message": f"Login sukses. Selamat datang, {user_data['nama']}!",
                     "user_id": user_id_val,
-                    "nama": user['nama'],
-                    "email": user['email'],
-                    "username": user['username'],
-                    "phone": user['phone'],
-                    "role": user['role'],
+                    "nama": user_data['nama'],
+                    "email": user_data['email'],
+                    "username": user_data['username'],
+                    "phone": user_data['phone'],
+                    "role": user_data['role'],
                     "status": status_val
                 }), 200
             else:
@@ -261,7 +269,8 @@ def predict_disease():
         img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
         
         # 3. Jalankan inference
-        infer = MODEL.signatures["serving_default"]
+        # Type ignore untuk Pylance - SavedModel memiliki signatures
+        infer = MODEL.signatures["serving_default"]  # type: ignore
         output = infer(tf.constant(img_array, dtype=tf.float32))
         
         # Get predictions dari output

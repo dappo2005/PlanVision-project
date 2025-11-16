@@ -28,7 +28,8 @@ for col in columns:
     print(f"  {col}")
 
 def column_exists(name: str) -> bool:
-    return any(col[0] == name for col in columns)
+    # columns adalah list of tuples, col[0] adalah nama kolom
+    return any(col[0] == name for col in columns)  # type: ignore
 
 print("\nApplying migrations...")
 

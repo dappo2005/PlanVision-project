@@ -33,9 +33,9 @@ import datetime
 # Try to import heavy dependencies; fail gracefully with message
 try:
     import tensorflow as tf
-    from tensorflow.keras import layers, models
-    from tensorflow.keras.preprocessing import image_dataset_from_directory
-    from tensorflow.keras.applications import efficientnet
+    from tensorflow.keras import layers, models  # type: ignore
+    from tensorflow.keras.preprocessing import image_dataset_from_directory  # type: ignore
+    from tensorflow.keras.applications import efficientnet  # type: ignore
 except Exception as e:
     print("TensorFlow import failed:", e)
     print("\nPlease install the ML requirements first. Example:\n  pip install -r backend/requirements-ml.txt")
@@ -135,8 +135,8 @@ def get_class_weights(train_dir, class_names):
     if not labels:
         return None
 
-    labels = np.array(labels)
-    class_weights = compute_class_weight('balanced', classes=np.arange(len(class_names)), y=labels)
+    labels = np.array(labels)  # type: ignore
+    class_weights = compute_class_weight('balanced', classes=np.arange(len(class_names)), y=labels)  # type: ignore
     class_weights_dict = {i: float(w) for i, w in enumerate(class_weights)}
     print('Computed class weights:', class_weights_dict)
     return class_weights_dict
@@ -156,7 +156,7 @@ def build_model(num_classes, img_size=224, learning_rate=1e-3):
     model = models.Model(inputs=inputs, outputs=outputs)
 
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),  # type: ignore
         loss='sparse_categorical_crossentropy',
         metrics=['accuracy']
     )
@@ -178,9 +178,9 @@ def main():
     saved_model_dir = os.path.join(args.model_dir, 'saved_model')
 
     callbacks = [
-        tf.keras.callbacks.ModelCheckpoint(checkpoint_path, monitor='val_accuracy', save_best_only=True, verbose=1),
-        tf.keras.callbacks.EarlyStopping(monitor='val_accuracy', patience=6, restore_best_weights=True, verbose=1),
-        tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1)
+        tf.keras.callbacks.ModelCheckpoint(checkpoint_path, monitor='val_accuracy', save_best_only=True, verbose=1),  # type: ignore
+        tf.keras.callbacks.EarlyStopping(monitor='val_accuracy', patience=6, restore_best_weights=True, verbose=1),  # type: ignore
+        tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1)  # type: ignore
     ]
 
     # compute class weights if possible
@@ -202,7 +202,7 @@ def main():
         base_model.trainable = True
         for layer in base_model.layers[:args.fine_tune_at]:
             layer.trainable = False
-        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=args.learning_rate/10),
+        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=args.learning_rate/10),  # type: ignore
                       loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
         history_finetune = model.fit(
