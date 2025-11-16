@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 
-# Load history
-history_path = Path("../models/efficientnet_saved/history.json")
+# Load history (adjusted for new location under backend/ml)
+history_path = Path("../../models/efficientnet_saved/history.json")
 with open(history_path, 'r') as f:
     history = json.load(f)
 

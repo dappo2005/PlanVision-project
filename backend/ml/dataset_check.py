@@ -1,7 +1,8 @@
 import os
 from collections import defaultdict
 
-DATASET_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Citrus Leaf Disease Image'))
+# Adjust for new location under backend/ml
+DATASET_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'Citrus Leaf Disease Image'))
 
 print('Checking dataset at:', DATASET_DIR)
 

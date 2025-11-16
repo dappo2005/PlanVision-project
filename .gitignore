@@ -193,3 +193,13 @@ cython_debug/
 # Cursor
 .cursorignore
 .cursorindexingignore
+
+# --- Project-specific large assets (keep local, not in Git) ---
+# If you need to commit small samples, create allowlists later.
+data/
+Citrus Leaf Disease Image/
+models/
+backend/uploads/
+
+# Vite cache
+.vite/

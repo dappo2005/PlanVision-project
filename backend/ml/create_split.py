@@ -3,8 +3,8 @@ import shutil
 import random
 from math import floor
 
-# Paths
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+# Paths (adjusted for new location under backend/ml)
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 SRC_DATASET = os.path.join(BASE_DIR, 'Citrus Leaf Disease Image')
 DEST_DATASET = os.path.join(BASE_DIR, 'data', 'plantvision_dataset')
 

@@ -1,4 +1,4 @@
-# Monitor training output
+# Monitor training output (moved to backend/ml)
 $logFile = "C:\Users\$env:USERNAME\.conda\envs\planvision-ml\training.log"
 
 # Run training and capture output

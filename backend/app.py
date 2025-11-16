@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 import mysql.connector
 import bcrypt
@@ -9,10 +9,18 @@ import time
 from PIL import Image
 import io
 from flask_cors import CORS
+from datetime import datetime
+import json
+from disease_info import get_disease_info
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS untuk semua routes
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
+
+# Upload folder configuration
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Load ML model at startup
 MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'efficientnet_saved', 'saved_model')
@@ -245,11 +253,14 @@ def login_user():
 def predict_disease():
     """
     API untuk memprediksi penyakit daun berdasarkan gambar.
-    Menerima: multipart/form-data dengan key 'image'
-    Mengembalikan: JSON dengan predictions, top_class, dan inference_time_ms
+    Menerima: multipart/form-data dengan key 'image' dan 'user_id'
+    Mengembalikan: JSON dengan predictions, recommendations, dan menyimpan ke database
     """
     if MODEL is None:
         return jsonify({"error": "Model belum dimuat. Silakan coba lagi."}), 500
+    
+    conn = None
+    cursor = None
     
     try:
         # 1. Periksa apakah ada file 'image' dalam request
@@ -260,27 +271,41 @@ def predict_disease():
         if file.filename == '':
             return jsonify({"error": "File tidak dipilih"}), 400
         
-        # 2. Baca dan preprocess gambar
+        # Get user_id dari form data (opsional, untuk save history)
+        user_id = request.form.get('user_id', None)
+        
+        # 2. Save uploaded image
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = secure_filename(file.filename or 'image.jpg')
+        unique_filename = f"{timestamp}_{filename}"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        
+        # Reset file pointer dan save
+        file.seek(0)
+        file.save(filepath)
+        
+        # 3. Baca dan preprocess gambar untuk inference
         start_time = time.time()
         
-        img = Image.open(io.BytesIO(file.read())).convert('RGB')
+        img = Image.open(filepath).convert('RGB')
         img = img.resize((224, 224))
         img_array = np.array(img) / 255.0  # Normalize ke [0, 1]
         img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
         
-        # 3. Jalankan inference
+        # 4. Jalankan inference
         # Type ignore untuk Pylance - SavedModel memiliki signatures
         infer = MODEL.signatures["serving_default"]  # type: ignore
         output = infer(tf.constant(img_array, dtype=tf.float32))
         
-        # Get predictions dari output
-        predictions_raw = output['dense_2'].numpy()[0]  # logits atau probabilities
+        # Get predictions dari output (ambil key pertama secara dinamis)
+        output_key = list(output.keys())[0]
+        predictions_raw = output[output_key].numpy()[0]  # logits atau probabilities
         
         # Softmax untuk normalize jika belum
         from scipy.special import softmax
         predictions = softmax(predictions_raw)
         
-        # 4. Get top 3 predictions
+        # 5. Get top 3 predictions
         top_indices = np.argsort(predictions)[::-1][:3]
         
         predictions_list = []
@@ -292,17 +317,147 @@ def predict_disease():
         
         inference_time = (time.time() - start_time) * 1000  # Convert to ms
         
-        # 5. Return response
+        # 6. Get disease information
+        top_class = predictions_list[0]["class"]
+        top_probability = predictions_list[0]["probability"]
+        disease_data = get_disease_info(top_class)
+        
+        # 7. Save to database if user_id provided
+        history_id = None
+        if user_id:
+            try:
+                conn = get_db_connection()
+                if conn:
+                    cursor = conn.cursor()
+                    
+                    insert_query = """
+                        INSERT INTO DetectionHistory 
+                        (user_id, image_path, disease_name, confidence, severity, description, symptoms, treatment, prevention)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    
+                    values = (
+                        int(user_id),
+                        unique_filename,  # Store only filename, not full path
+                        disease_data['disease'],
+                        round(top_probability * 100, 2),
+                        disease_data['severity'],
+                        disease_data['description'],
+                        json.dumps(disease_data['symptoms']),
+                        json.dumps(disease_data['treatment']),
+                        json.dumps(disease_data['prevention'])
+                    )
+                    
+                    cursor.execute(insert_query, values)
+                    conn.commit()
+                    history_id = cursor.lastrowid
+                    print(f"[Predict] Saved detection history ID={history_id} for user {user_id}")
+            except Exception as db_error:
+                print(f"[Predict] Database error: {db_error}")
+                # Continue even if DB save fails
+            finally:
+                if cursor:
+                    cursor.close()
+                if conn and conn.is_connected():
+                    conn.close()
+        
+        # 8. Return response dengan rekomendasi lengkap
         return jsonify({
             "predictions": predictions_list,
-            "top_class": predictions_list[0]["class"],
-            "top_probability": predictions_list[0]["probability"],
-            "inference_time_ms": round(inference_time, 2)
+            "top_class": top_class,
+            "top_probability": top_probability,
+            "inference_time_ms": round(inference_time, 2),
+            "history_id": history_id,
+            "disease_info": {
+                "disease": disease_data['disease'],
+                "severity": disease_data['severity'],
+                "description": disease_data['description'],
+                "symptoms": disease_data['symptoms'],
+                "treatment": disease_data['treatment'],
+                "prevention": disease_data['prevention']
+            },
+            "image_url": f"/api/uploads/{unique_filename}"
         }), 200
         
     except Exception as e:
         print(f"Error in predict_disease: {str(e)}")
         return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
+
+
+# --- API DETECTION HISTORY ---
+@app.route('/api/detection-history/<int:user_id>', methods=['GET'])
+def get_detection_history(user_id):
+    """
+    API untuk mendapatkan histori deteksi berdasarkan user_id
+    Returns: List of detection history sorted by date (newest first)
+    """
+    conn = None
+    cursor = None
+    
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        
+        cursor = conn.cursor(dictionary=True)
+        
+        query = """
+            SELECT 
+                id, user_id, image_path, disease_name, confidence, severity,
+                description, symptoms, treatment, prevention, detection_date
+            FROM DetectionHistory
+            WHERE user_id = %s
+            ORDER BY detection_date DESC
+        """
+        
+        cursor.execute(query, (user_id,))
+        results = cursor.fetchall()
+        
+        # Parse JSON fields
+        history = []
+        for row in results:
+            # Type assertion for Pylance - cursor with dictionary=True returns dict
+            row_data: dict = row  # type: ignore
+            history.append({
+                "id": row_data['id'],
+                "user_id": row_data['user_id'],
+                "image_url": f"/api/uploads/{row_data['image_path']}",
+                "disease_name": row_data['disease_name'],
+                "confidence": float(row_data['confidence']),
+                "severity": row_data['severity'],
+                "description": row_data['description'],
+                "symptoms": json.loads(row_data['symptoms']) if row_data['symptoms'] else [],
+                "treatment": json.loads(row_data['treatment']) if row_data['treatment'] else [],
+                "prevention": json.loads(row_data['prevention']) if row_data['prevention'] else [],
+                "detection_date": row_data['detection_date'].isoformat() if row_data['detection_date'] else None
+            })
+        
+        return jsonify({
+            "user_id": user_id,
+            "total": len(history),
+            "history": history
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in get_detection_history: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+
+# --- API SERVE UPLOADED IMAGES ---
+@app.route('/api/uploads/<filename>', methods=['GET'])
+def serve_upload(filename):
+    """
+    Serve uploaded images dari folder uploads
+    """
+    try:
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    except FileNotFoundError:
+        return jsonify({"error": "Image not found"}), 404
 
 
 # --- Menjalankan Aplikasi ---

@@ -4,3 +4,10 @@ opencv-python
 albumentations
 matplotlib
 pandas
+flask
+flask-cors
+mysql-connector-python
+bcrypt
+pillow
+scipy
+werkzeug

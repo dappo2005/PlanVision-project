@@ -3,8 +3,8 @@ Training script for Citrus Leaf Disease classification using TensorFlow Keras.
 
 Usage (example):
   python train.py \
-    --data_dir "../data/plantvision_dataset" \
-    --model_dir "../models/efficientnet_saved" \
+    --data_dir "../../data/plantvision_dataset" \
+    --model_dir "../../models/efficientnet_saved" \
     --img_size 224 \
     --batch_size 32 \
     --epochs 20
@@ -38,7 +38,7 @@ try:
     from tensorflow.keras.applications import efficientnet  # type: ignore
 except Exception as e:
     print("TensorFlow import failed:", e)
-    print("\nPlease install the ML requirements first. Example:\n  pip install -r backend/requirements-ml.txt")
+    print("\nPlease install the ML requirements first. Example:\n  pip install -r backend/ml/requirements-ml.txt")
     raise SystemExit(1)
 
 try:
@@ -51,8 +51,9 @@ except Exception:
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument('--data_dir', type=str, default=os.path.join('..', 'data', 'plantvision_dataset'))
-    p.add_argument('--model_dir', type=str, default=os.path.join('..', 'models', 'efficientnet_saved'))
+    # adjusted defaults for new location under backend/ml
+    p.add_argument('--data_dir', type=str, default=os.path.join('..', '..', 'data', 'plantvision_dataset'))
+    p.add_argument('--model_dir', type=str, default=os.path.join('..', '..', 'models', 'efficientnet_saved'))
     p.add_argument('--img_size', type=int, default=224)
     p.add_argument('--batch_size', type=int, default=32)
     p.add_argument('--epochs', type=int, default=20)
