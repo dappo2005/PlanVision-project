@@ -1,9 +1,37 @@
 from flask import Flask, request, jsonify
+from werkzeug.utils import secure_filename
 import mysql.connector
 import bcrypt
 import os
+import tensorflow as tf
+import numpy as np
+import time
+from PIL import Image
+import io
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
+
+# Load ML model at startup
+MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'efficientnet_saved', 'saved_model')
+MODEL = None
+CLASS_NAMES = ['Black spot', 'Canker', 'Greening', 'Healthy', 'Melanose']
+
+def load_model():
+    """Load SavedModel dari disk"""
+    global MODEL
+    try:
+        if os.path.exists(MODEL_PATH):
+            print(f"Loading model from {MODEL_PATH}")
+            MODEL = tf.saved_model.load(MODEL_PATH)
+            print("Model loaded successfully!")
+        else:
+            print(f"Warning: Model not found at {MODEL_PATH}")
+    except Exception as e:
+        print(f"Error loading model: {e}")
+
+# Load model saat Flask startup
+load_model()
 
 # --- KONFIGURASI KONEKSI DATABASE ---
 # Ganti dengan kredensial Anda
@@ -173,6 +201,71 @@ def login_user():
             cursor.close()
         if conn and conn.is_connected():
             conn.close()
+
+
+# --- API PREDIKSI (F-08) ---
+@app.route('/api/predict', methods=['POST'])
+def predict_disease():
+    """
+    API untuk memprediksi penyakit daun berdasarkan gambar.
+    Menerima: multipart/form-data dengan key 'image'
+    Mengembalikan: JSON dengan predictions, top_class, dan inference_time_ms
+    """
+    if MODEL is None:
+        return jsonify({"error": "Model belum dimuat. Silakan coba lagi."}), 500
+    
+    try:
+        # 1. Periksa apakah ada file 'image' dalam request
+        if 'image' not in request.files:
+            return jsonify({"error": "File 'image' diperlukan"}), 400
+        
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify({"error": "File tidak dipilih"}), 400
+        
+        # 2. Baca dan preprocess gambar
+        start_time = time.time()
+        
+        img = Image.open(io.BytesIO(file.read())).convert('RGB')
+        img = img.resize((224, 224))
+        img_array = np.array(img) / 255.0  # Normalize ke [0, 1]
+        img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
+        
+        # 3. Jalankan inference
+        infer = MODEL.signatures["serving_default"]
+        output = infer(tf.constant(img_array, dtype=tf.float32))
+        
+        # Get predictions dari output
+        predictions_raw = output['dense_2'].numpy()[0]  # logits atau probabilities
+        
+        # Softmax untuk normalize jika belum
+        from scipy.special import softmax
+        predictions = softmax(predictions_raw)
+        
+        # 4. Get top 3 predictions
+        top_indices = np.argsort(predictions)[::-1][:3]
+        
+        predictions_list = []
+        for idx in top_indices:
+            predictions_list.append({
+                "class": CLASS_NAMES[idx],
+                "probability": float(predictions[idx])
+            })
+        
+        inference_time = (time.time() - start_time) * 1000  # Convert to ms
+        
+        # 5. Return response
+        return jsonify({
+            "predictions": predictions_list,
+            "top_class": predictions_list[0]["class"],
+            "top_probability": predictions_list[0]["probability"],
+            "inference_time_ms": round(inference_time, 2)
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in predict_disease: {str(e)}")
+        return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
+
 
 # --- Menjalankan Aplikasi ---
 if __name__ == '__main__':

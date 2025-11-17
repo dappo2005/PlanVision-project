@@ -193,3 +193,17 @@ cython_debug/
 # Cursor
 .cursorignore
 .cursorindexingignore
+
+# Local datasets and trained models
+Citrus Leaf Disease Image/
+data/
+models/
+
+# ML assets
+README_ML.md
+backend/requirements-ml.txt
+backend/run_training.ps1
+backend/RUN_TRAINING.bat
+backend/train.py
+backend/create_split.py
+backend/dataset_check.py
