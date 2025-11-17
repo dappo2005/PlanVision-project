@@ -194,16 +194,16 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
-# Local datasets and trained models
-Citrus Leaf Disease Image/
+# --- Project-specific large assets (keep local, not in Git) ---
+# If you need to commit small samples, create allowlists later.
 data/
+Citrus Leaf Disease Image/
 models/
+backend/uploads/
 
-# ML assets
+# ML research/training assets (local only)
 README_ML.md
-backend/requirements-ml.txt
-backend/run_training.ps1
-backend/RUN_TRAINING.bat
-backend/train.py
-backend/create_split.py
-backend/dataset_check.py
+backend/ml/
+
+# Vite cache
+.vite/

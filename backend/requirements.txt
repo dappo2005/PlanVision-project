@@ -1,0 +1,8 @@
+flask
+flask-cors
+mysql-connector-python
+bcrypt
+pillow
+scipy
+tensorflow==2.15.0
+werkzeug

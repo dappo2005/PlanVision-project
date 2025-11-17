@@ -200,17 +200,88 @@ export default function DiseaseDetector({
     }
   };
 
-  const analyzeImage = () => {
+  const analyzeImage = async () => {
+    if (!selectedImage) {
+      toast.error("Tidak ada gambar yang dipilih");
+      return;
+    }
+
     setIsAnalyzing(true);
     setResult(null);
 
-    // Simulate AI analysis with random disease detection
-    setTimeout(() => {
-      const diseases = Object.keys(diseaseDatabase);
-      const randomDisease = diseases[Math.floor(Math.random() * diseases.length)];
-      setResult(diseaseDatabase[randomDisease]);
+    try {
+      // Get user_id from localStorage (assuming it's saved during login)
+      const userData = localStorage.getItem('user');
+      const userId = userData ? JSON.parse(userData).user_id : null;
+
+      // Convert base64 image to File object
+      const response = await fetch(selectedImage);
+      const blob = await response.blob();
+      const file = new File([blob], "leaf_image.jpg", { type: "image/jpeg" });
+
+      // Create FormData
+      const formData = new FormData();
+      formData.append('image', file);
+      if (userId) {
+        formData.append('user_id', userId.toString());
+      }
+
+      // Call backend API
+      const apiResponse = await fetch('http://localhost:5000/api/predict', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!apiResponse.ok) {
+        throw new Error(`API error: ${apiResponse.status}`);
+      }
+
+      const data = await apiResponse.json();
+      
+      // Map API response to our result format
+      const mappedResult: DetectionResult = {
+        disease: data.disease_info.disease,
+        confidence: Math.round(data.top_probability * 100),
+        severity: data.disease_info.severity as "rendah" | "sedang" | "tinggi",
+        description: data.disease_info.description,
+        symptoms: data.disease_info.symptoms,
+        treatment: data.disease_info.treatment,
+        prevention: data.disease_info.prevention,
+        color: getColorForDisease(data.top_class)
+      };
+
+      setResult(mappedResult);
+      
+      // Warning jika confidence rendah
+      if (data.top_probability < 0.75) {
+        toast.warning("Confidence rendah - Hasil mungkin kurang akurat", {
+          description: `Model hanya ${Math.round(data.top_probability * 100)}% yakin. Coba foto dengan pencahayaan lebih baik atau angle berbeda.`
+        });
+      } else {
+        toast.success("Deteksi berhasil!", {
+          description: `Terdeteksi: ${data.disease_info.disease} (${Math.round(data.top_probability * 100)}% yakin)`
+        });
+      }
+
+    } catch (error) {
+      console.error("Error analyzing image:", error);
+      toast.error("Gagal mendeteksi penyakit", {
+        description: error instanceof Error ? error.message : "Terjadi kesalahan. Pastikan backend Flask sudah berjalan di port 5000."
+      });
+    } finally {
       setIsAnalyzing(false);
-    }, 2000);
+    }
+  };
+
+  const getColorForDisease = (className: string): string => {
+    const colorMap: Record<string, string> = {
+      "Canker": "#E74C3C",
+      "Greening": "#F39C12",
+      "Melanose": "#9B59B6",
+      "Black spot": "#34495E",
+      "Healthy": "#2ECC71"
+    };
+    return colorMap[className] || "#95A5A6";
   };
 
   const getSeverityBadge = (severity: string) => {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import LandingPage from "./components/LandingPage";
 import Dashboard from "./components/Dashboard";
 import DiseaseDetector from "./components/DiseaseDetector";
@@ -15,12 +15,25 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>("landing");
   const [showLoginDialog, setShowLoginDialog] = useState(false);
 
+  // Load persisted login state
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        setCurrentPage("dashboard");
+      }
+    } catch (_) {
+      // ignore storage errors
+    }
+  }, []);
+
   const handleLogin = () => {
     setCurrentPage("dashboard");
     setShowLoginDialog(false);
   };
 
   const handleLogout = () => {
+    try { localStorage.removeItem('user'); } catch (_) {}
     setCurrentPage("landing");
   };
 
