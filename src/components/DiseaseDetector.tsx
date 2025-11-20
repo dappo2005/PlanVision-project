@@ -7,6 +7,8 @@ import { Badge } from "./ui/badge";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://192.168.18.65:5000";
+
 interface DetectionResult {
   disease: string;
   confidence: number;
@@ -227,7 +229,7 @@ export default function DiseaseDetector({
       }
 
       // Call backend API
-      const apiResponse = await fetch('http://localhost:5000/api/predict', {
+      const apiResponse = await fetch(`${API_URL}/api/predict`, {
         method: 'POST',
         body: formData,
       });

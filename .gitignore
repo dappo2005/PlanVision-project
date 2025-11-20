@@ -201,5 +201,9 @@ Citrus Leaf Disease Image/
 models/
 backend/uploads/
 
+# ML research/training assets (local only)
+README_ML.md
+backend/ml/
+
 # Vite cache
 .vite/
