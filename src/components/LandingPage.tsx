@@ -10,6 +10,8 @@ import { Leaf, Camera, Network, BarChart3, FileText, Cloud, Linkedin, Github, Ma
 import { useState } from "react";
 import React from "react";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
 interface LandingPageProps {
   onLogin: () => void;
   showLoginDialog: boolean;
@@ -65,7 +67,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       password: loginPassword
     };
 
-    fetch('http://localhost:5000/api/login', {
+    fetch(`${API_URL}/api/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -133,7 +135,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       acceptTerms: true
     };
 
-    fetch('http://localhost:5000/api/register', {
+    fetch(`${API_URL}/api/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
