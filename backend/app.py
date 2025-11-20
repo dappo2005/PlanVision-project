@@ -1,28 +1,467 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
+from werkzeug.utils import secure_filename
+import mysql.connector
+import bcrypt
+import os
+import tensorflow as tf
+import numpy as np
+import time
+from PIL import Image
+import io
 from flask_cors import CORS
+from datetime import datetime
+import json
+from disease_info import get_disease_info
 
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # Enable CORS untuk semua routes
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 
-@app.route('/', methods=['GET'])
-def index():
-    return 'OK', 200
+# Upload folder configuration
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# endpoint login — sesuaikan path jika frontend memanggil path lain (cek network tab)
-@app.route('/auth/login', methods=['POST'])
-def login():
-    data = request.get_json() or {}
-    email = data.get('email')
-    password = data.get('password')
-    # untuk development: terima semua kredensial, kembalikan token demo
-    if not email or not password:
-        return jsonify({'success': False, 'message': 'Missing credentials'}), 400
-    return jsonify({
-        'success': True,
-        'token': 'dev-token',
-        'user': {'email': email}
-    }), 200
+# Load ML model at startup
+MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'efficientnet_saved', 'saved_model')
+MODEL = None
+CLASS_NAMES = ['Black spot', 'Canker', 'Greening', 'Healthy', 'Melanose']
 
+def load_model():
+    """Load SavedModel dari disk"""
+    global MODEL
+    try:
+        if os.path.exists(MODEL_PATH):
+            print(f"Loading model from {MODEL_PATH}")
+            MODEL = tf.saved_model.load(MODEL_PATH)
+            print("Model loaded successfully!")
+        else:
+            print(f"Warning: Model not found at {MODEL_PATH}")
+    except Exception as e:
+        print(f"Error loading model: {e}")
+
+# Load model saat Flask startup
+load_model()
+
+# --- KONFIGURASI KONEKSI DATABASE ---
+# Bisa dikonfigurasi melalui environment variables agar konsisten dengan DB Anda
+# Contoh (PowerShell): $env:DB_NAME = "planvision"
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_PORT = os.getenv('DB_PORT', '3306')
+DB_USER = os.getenv('DB_USER', 'root')
+DB_PASSWORD = os.getenv('DB_PASSWORD', 'D@ffa_2005')
+DB_NAME = os.getenv('DB_NAME', 'plantvision_db')
+
+print(f"[Backend] Connecting to MySQL DB='{DB_NAME}' on {DB_HOST}:{DB_PORT} as {DB_USER}")
+
+def get_db_connection():
+    """Fungsi helper untuk membuat koneksi database"""
+    try:
+        conn = mysql.connector.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME
+        )
+        return conn
+    except mysql.connector.Error as e:
+        print(f"Error connecting to MySQL: {e}")
+        return None
+
+def generate_unique_username(base: str, cursor) -> str:
+    """Generate username unik berdasarkan base (tanpa domain). Tambah angka jika bentrok."""
+    # Bersihkan base ke huruf/angka/underscore
+    import re
+    cleaned = re.sub(r'[^a-zA-Z0-9_]', '', base.lower()) or 'user'
+    candidate = cleaned
+    suffix = 1
+    while True:
+        cursor.execute("SELECT 1 FROM User WHERE username=%s LIMIT 1", (candidate,))
+        if cursor.fetchone() is None:
+            return candidate
+        candidate = f"{cleaned}{suffix}"
+        suffix += 1
+
+# --- API REGISTRASI (F-02) ---
+@app.route('/api/register', methods=['POST'])
+def register_user():
+    """
+    API untuk mendaftarkan pengguna baru (Petani).
+    Menerima data JSON: nama, email, username, phone, password.
+    """
+    conn = None
+    cursor = None
+    try:
+        # 1. Ambil data JSON dari request
+        data = request.json
+        if not data:
+            return jsonify({"error": "Invalid request data"}), 400
+        
+        nama = data.get('nama')
+        email = data.get('email')
+        phone = data.get('phone')
+        password = data.get('password')
+        accept_terms = data.get('acceptTerms')  # Boolean dari frontend
+        
+        # Validasi fields yang wajib
+        if not nama or not email or not password:
+            return jsonify({"error": "Nama, email, dan password wajib diisi"}), 400
+        if not isinstance(accept_terms, bool) or not accept_terms:
+            return jsonify({"error": "Syarat & ketentuan harus disetujui (acceptTerms)"}), 400
+
+        # 2. Hash password
+        # Bcrypt menghasilkan bytes ASCII -> simpan sebagai string supaya login sederhana
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+        # 3. Dapatkan koneksi database
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+            
+        cursor = conn.cursor()
+
+        # 4. Buat username unik (frontend tidak menyediakan eksplisit username)
+        email_local_part = (email.split('@')[0]) if '@' in email else email
+        username = generate_unique_username(email_local_part, cursor)
+
+        # 5. Eksekusi query SQL termasuk accept_terms
+        query = "INSERT INTO User (nama, email, username, phone, password, role, status_akun, accept_terms) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+        values = (nama, email, username, phone or None, hashed_password, 'user', 'aktif', 1)
+
+        cursor.execute(query, values)
+        conn.commit()
+
+        # 5. Kirim respons sukses
+        user_id = cursor.lastrowid
+        return jsonify({
+            "message": f"Registrasi sukses untuk user: {username}",
+            "user_id": user_id,
+            "nama": nama,
+            "email": email,
+            "username": username,
+            "phone": phone,
+            "accept_terms": True,
+            "status_akun": "aktif",
+            "role": "user"
+        }), 201
+
+    except mysql.connector.Error as err:
+        # Tangani error spesifik (misal: duplicate entry)
+        if err.errno == 1062:  # Duplicate entry
+            field = "Email" if "email" in str(err) else "Username"
+            return jsonify({"error": f"{field} sudah terdaftar"}), 409
+        return jsonify({"error": str(err)}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        # 6. Pastikan koneksi dan kursor ditutup
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+
+# --- API LOGIN (F-01) ---
+@app.route('/api/login', methods=['POST'])
+def login_user():
+    """
+    API untuk login pengguna.
+    Menerima data JSON: username, password.
+    """
+    conn = None
+    cursor = None
+    try:
+        # 1. Ambil data JSON dari request
+        data = request.json
+        if not data:
+            return jsonify({"error": "Invalid request data"}), 400
+        
+        username_or_email = data.get('username')  # frontend kirim email di field ini
+        password = data.get('password')
+
+        if not username_or_email or not password:
+            return jsonify({"error": "Username/email dan password diperlukan"}), 400
+
+        # 2. Dapatkan koneksi database
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+            
+        # Gunakan dictionary=True agar hasil query bisa diakses berdasarkan nama kolom
+        cursor = conn.cursor(dictionary=True) 
+
+        # 3. Cari user baik dengan email maupun username (lebih toleran)
+        username_or_email = username_or_email.strip()
+        query = "SELECT * FROM User WHERE email = %s OR username = %s"
+        cursor.execute(query, (username_or_email, username_or_email))
+        user = cursor.fetchone() # Ambil satu data user
+        try:
+            print(f"[Login] DB='{DB_NAME}', found={bool(user)} for '{username_or_email}'")
+        except Exception:
+            pass
+
+        # 4. Jika user tidak ditemukan
+        if not user:
+            return jsonify({"error": "Username atau password salah"}), 401 # 401 Unauthorized
+
+        # 5. Bandingkan password
+        try:
+            # Debug: Print tipe data password dari database
+            # Ambil password hash (sudah disimpan sebagai string ASCII)
+            # Type assertion untuk Pylance - cursor dengan dictionary=True mengembalikan dict
+            user_data: dict = user  # type: ignore
+            stored_hash = str(user_data['password'])
+            password_match = bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8'))
+            print(f"Password match: {password_match}")
+
+            if password_match:
+                # Password cocok!
+                user_id_val = user_data.get('user_id') or user_data.get('id')
+                status_val = user_data.get('status_akun') or user_data.get('status') or 'aktif'
+                return jsonify({
+                    "message": f"Login sukses. Selamat datang, {user_data['nama']}!",
+                    "user_id": user_id_val,
+                    "nama": user_data['nama'],
+                    "email": user_data['email'],
+                    "username": user_data['username'],
+                    "phone": user_data['phone'],
+                    "role": user_data['role'],
+                    "status": status_val
+                }), 200
+            else:
+                return jsonify({"error": "Username atau password salah"}), 401
+        except Exception as e:
+            print(f"Error detail saat verifikasi password: {str(e)}")
+            return jsonify({"error": f"Terjadi kesalahan saat verifikasi: {str(e)}"}), 500
+        else:
+            # Password salah
+            return jsonify({"error": "Username atau password salah"}), 401
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        # 6. Pastikan koneksi dan kursor ditutup
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+
+# --- API PREDIKSI (F-08) ---
+@app.route('/api/predict', methods=['POST'])
+def predict_disease():
+    """
+    API untuk memprediksi penyakit daun berdasarkan gambar.
+    Menerima: multipart/form-data dengan key 'image' dan 'user_id'
+    Mengembalikan: JSON dengan predictions, recommendations, dan menyimpan ke database
+    """
+    if MODEL is None:
+        return jsonify({"error": "Model belum dimuat. Silakan coba lagi."}), 500
+    
+    conn = None
+    cursor = None
+    
+    try:
+        # 1. Periksa apakah ada file 'image' dalam request
+        if 'image' not in request.files:
+            return jsonify({"error": "File 'image' diperlukan"}), 400
+        
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify({"error": "File tidak dipilih"}), 400
+        
+        # Get user_id dari form data (opsional, untuk save history)
+        user_id = request.form.get('user_id', None)
+        
+        # 2. Save uploaded image
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = secure_filename(file.filename or 'image.jpg')
+        unique_filename = f"{timestamp}_{filename}"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        
+        # Reset file pointer dan save
+        file.seek(0)
+        file.save(filepath)
+        
+        # 3. Baca dan preprocess gambar untuk inference
+        start_time = time.time()
+        
+        img = Image.open(filepath).convert('RGB')
+        img = img.resize((224, 224))
+        img_array = np.array(img) / 255.0  # Normalize ke [0, 1]
+        img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
+        
+        # 4. Jalankan inference
+        # Type ignore untuk Pylance - SavedModel memiliki signatures
+        infer = MODEL.signatures["serving_default"]  # type: ignore
+        output = infer(tf.constant(img_array, dtype=tf.float32))
+        
+        # Get predictions dari output (ambil key pertama secara dinamis)
+        output_key = list(output.keys())[0]
+        predictions_raw = output[output_key].numpy()[0]  # logits atau probabilities
+        
+        # Softmax untuk normalize jika belum
+        from scipy.special import softmax
+        predictions = softmax(predictions_raw)
+        
+        # 5. Get top 3 predictions
+        top_indices = np.argsort(predictions)[::-1][:3]
+        
+        predictions_list = []
+        for idx in top_indices:
+            predictions_list.append({
+                "class": CLASS_NAMES[idx],
+                "probability": float(predictions[idx])
+            })
+        
+        inference_time = (time.time() - start_time) * 1000  # Convert to ms
+        
+        # 6. Get disease information
+        top_class = predictions_list[0]["class"]
+        top_probability = predictions_list[0]["probability"]
+        disease_data = get_disease_info(top_class)
+        
+        # 7. Save to database if user_id provided
+        history_id = None
+        if user_id:
+            try:
+                conn = get_db_connection()
+                if conn:
+                    cursor = conn.cursor()
+                    
+                    insert_query = """
+                        INSERT INTO DetectionHistory 
+                        (user_id, image_path, disease_name, confidence, severity, description, symptoms, treatment, prevention)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    
+                    values = (
+                        int(user_id),
+                        unique_filename,  # Store only filename, not full path
+                        disease_data['disease'],
+                        round(top_probability * 100, 2),
+                        disease_data['severity'],
+                        disease_data['description'],
+                        json.dumps(disease_data['symptoms']),
+                        json.dumps(disease_data['treatment']),
+                        json.dumps(disease_data['prevention'])
+                    )
+                    
+                    cursor.execute(insert_query, values)
+                    conn.commit()
+                    history_id = cursor.lastrowid
+                    print(f"[Predict] Saved detection history ID={history_id} for user {user_id}")
+            except Exception as db_error:
+                print(f"[Predict] Database error: {db_error}")
+                # Continue even if DB save fails
+            finally:
+                if cursor:
+                    cursor.close()
+                if conn and conn.is_connected():
+                    conn.close()
+        
+        # 8. Return response dengan rekomendasi lengkap
+        return jsonify({
+            "predictions": predictions_list,
+            "top_class": top_class,
+            "top_probability": top_probability,
+            "inference_time_ms": round(inference_time, 2),
+            "history_id": history_id,
+            "disease_info": {
+                "disease": disease_data['disease'],
+                "severity": disease_data['severity'],
+                "description": disease_data['description'],
+                "symptoms": disease_data['symptoms'],
+                "treatment": disease_data['treatment'],
+                "prevention": disease_data['prevention']
+            },
+            "image_url": f"/api/uploads/{unique_filename}"
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in predict_disease: {str(e)}")
+        return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
+
+
+# --- API DETECTION HISTORY ---
+@app.route('/api/detection-history/<int:user_id>', methods=['GET'])
+def get_detection_history(user_id):
+    """
+    API untuk mendapatkan histori deteksi berdasarkan user_id
+    Returns: List of detection history sorted by date (newest first)
+    """
+    conn = None
+    cursor = None
+    
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        
+        cursor = conn.cursor(dictionary=True)
+        
+        query = """
+            SELECT 
+                id, user_id, image_path, disease_name, confidence, severity,
+                description, symptoms, treatment, prevention, detection_date
+            FROM DetectionHistory
+            WHERE user_id = %s
+            ORDER BY detection_date DESC
+        """
+        
+        cursor.execute(query, (user_id,))
+        results = cursor.fetchall()
+        
+        # Parse JSON fields
+        history = []
+        for row in results:
+            # Type assertion for Pylance - cursor with dictionary=True returns dict
+            row_data: dict = row  # type: ignore
+            history.append({
+                "id": row_data['id'],
+                "user_id": row_data['user_id'],
+                "image_url": f"/api/uploads/{row_data['image_path']}",
+                "disease_name": row_data['disease_name'],
+                "confidence": float(row_data['confidence']),
+                "severity": row_data['severity'],
+                "description": row_data['description'],
+                "symptoms": json.loads(row_data['symptoms']) if row_data['symptoms'] else [],
+                "treatment": json.loads(row_data['treatment']) if row_data['treatment'] else [],
+                "prevention": json.loads(row_data['prevention']) if row_data['prevention'] else [],
+                "detection_date": row_data['detection_date'].isoformat() if row_data['detection_date'] else None
+            })
+        
+        return jsonify({
+            "user_id": user_id,
+            "total": len(history),
+            "history": history
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in get_detection_history: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+
+# --- API SERVE UPLOADED IMAGES ---
+@app.route('/api/uploads/<filename>', methods=['GET'])
+def serve_upload(filename):
+    """
+    Serve uploaded images dari folder uploads
+    """
+    try:
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    except FileNotFoundError:
+        return jsonify({"error": "Image not found"}), 404
+
+
+# --- Menjalankan Aplikasi ---
 if __name__ == '__main__':
-    # pastikan berjalan di port 5000
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    # host='0.0.0.0' allows access from other devices on the same network
+    app.run(debug=False, host='0.0.0.0', port=port)
