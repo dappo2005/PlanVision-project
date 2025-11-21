@@ -4,6 +4,7 @@ import mysql.connector
 import bcrypt
 import os
 import tensorflow as tf
+from tensorflow.keras.models import load_model as keras_load_model
 import numpy as np
 import time
 from PIL import Image
@@ -23,25 +24,28 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Load ML model at startup
-MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'efficientnet_saved', 'saved_model')
+# --- INTEGRATION: Load the new CNN model from Google Colab ---
+MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'citrus_cnn_v1.h5')
 MODEL = None
 CLASS_NAMES = ['Black spot', 'Canker', 'Greening', 'Healthy', 'Melanose']
+IMAGE_SIZE = 256  # Match the training size of the new CNN model
 
-def load_model():
-    """Load SavedModel dari disk"""
+def load_model_at_startup():
+    """Load Keras H5 model from disk"""
     global MODEL
     try:
         if os.path.exists(MODEL_PATH):
             print(f"Loading model from {MODEL_PATH}")
-            MODEL = tf.saved_model.load(MODEL_PATH)
+            MODEL = keras_load_model(MODEL_PATH)
             print("Model loaded successfully!")
+            print(f"Model input shape: {MODEL.input_shape}")
         else:
             print(f"Warning: Model not found at {MODEL_PATH}")
     except Exception as e:
         print(f"Error loading model: {e}")
 
 # Load model saat Flask startup
-load_model()
+load_model_at_startup()
 
 # --- KONFIGURASI KONEKSI DATABASE ---
 # Bisa dikonfigurasi melalui environment variables agar konsisten dengan DB Anda
@@ -248,12 +252,67 @@ def login_user():
             conn.close()
 
 
+
 # --- API PREDIKSI (F-08) ---
+# --- DATABASE INFORMASI PENYAKIT ---
+# Ini memetakan hasil prediksi ML ke informasi detail untuk frontend
+DISEASE_INFO_DB = {
+    'Black spot': {
+        'disease': 'Black Spot (Bercak Hitam)',
+        'severity': 'Sedang',
+        'description': 'Penyakit jamur yang menyebabkan bercak hitam pada daun dan buah, menurunkan kualitas visual buah.',
+        'symptoms': ['Bercak bulat kecil berwarna coklat/hitam', 'Tepi bercak berwarna kuning', 'Daun rontok dini'],
+        'treatment': ['Semprot fungisida berbahan aktif tembaga', 'Pangkas ranting yang terinfeksi'],
+        'prevention': ['Jaga kebersihan kebun', 'Pastikan sirkulasi udara baik']
+    },
+    'Canker': {
+        'disease': 'Citrus Canker (Kanker Jeruk)',
+        'severity': 'Tinggi',
+        'description': 'Penyakit bakteri sangat menular yang menyebabkan lesi pada daun, batang, dan buah.',
+        'symptoms': ['Bercak menonjol seperti gabus', 'Lingkaran kuning (halo) di sekitar bercak', 'Daun dan buah rontok'],
+        'treatment': ['Pangkas bagian yang sakit dan bakar', 'Semprot bakterisida tembaga'],
+        'prevention': ['Gunakan bibit bebas penyakit', 'Kendalikan hama penggorok daun (leaf miner)']
+    },
+    'Greening': {
+        'disease': 'Citrus Greening (CVPD/Huanglongbing)',
+        'severity': 'Sangat Tinggi (Kritis)',
+        'description': 'Penyakit mematikan yang disebabkan bakteri, disebarkan oleh kutu loncat (psyllid).',
+        'symptoms': ['Daun menguning tidak simetris (blotchy mottle)', 'Tulang daun menebal', 'Buah kecil dan asimetris'],
+        'treatment': ['Tidak ada obat yang menyembuhkan', 'Cabut dan musnahkan pohon terinfeksi segera'],
+        'prevention': ['Kendalikan vektor kutu loncat', 'Gunakan bibit bersertifikat bebas penyakit']
+    },
+    'Melanose': {
+        'disease': 'Melanose',
+        'severity': 'Ringan',
+        'description': 'Penyakit jamur yang menyerang jaringan muda, menyebabkan bintik-bintik kecil.',
+        'symptoms': ['Bintik kecil menonjol berwarna coklat kemerahan', 'Terasa kasar seperti amplas saat diraba'],
+        'treatment': ['Fungisida cair', 'Pemangkasan ranting mati'],
+        'prevention': ['Buang ranting mati tempat jamur berkembang biak']
+    },
+    'Healthy': {
+        'disease': 'Tanaman Sehat',
+        'severity': 'Aman',
+        'description': 'Daun tampak hijau, segar, dan bebas dari gejala penyakit.',
+        'symptoms': [],
+        'treatment': ['Lanjutkan perawatan rutin'],
+        'prevention': ['Pemupukan teratur', 'Penyiraman yang cukup']
+    }
+}
+
+def get_disease_info(class_name):
+    """Helper untuk mengambil info penyakit berdasarkan prediksi"""
+    return DISEASE_INFO_DB.get(class_name, {
+        'disease': class_name,
+        'severity': 'Tidak Diketahui',
+        'description': 'Penyakit belum teridentifikasi dalam database.',
+        'symptoms': [], 'treatment': [], 'prevention': []
+    })
+
 @app.route('/api/predict', methods=['POST'])
 def predict_disease():
     """
     API untuk memprediksi penyakit daun berdasarkan gambar.
-    Menerima: multipart/form-data dengan key 'image' dan 'user_id'
+    Menerima: multipart/form-data dengan key 'image' dan 'user_id' (opsional)
     Mengembalikan: JSON dengan predictions, recommendations, dan menyimpan ke database
     """
     if MODEL is None:
@@ -271,13 +330,18 @@ def predict_disease():
         if file.filename == '':
             return jsonify({"error": "File tidak dipilih"}), 400
         
-        # Get user_id dari form data (opsional, untuk save history)
+        # Get user_id dari form data
         user_id = request.form.get('user_id', None)
         
         # 2. Save uploaded image
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = secure_filename(file.filename or 'image.jpg')
         unique_filename = f"{timestamp}_{filename}"
+        
+        # Pastikan folder uploads ada
+        if not os.path.exists(app.config['UPLOAD_FOLDER']):
+            os.makedirs(app.config['UPLOAD_FOLDER'])
+
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
         
         # Reset file pointer dan save
@@ -288,23 +352,20 @@ def predict_disease():
         start_time = time.time()
         
         img = Image.open(filepath).convert('RGB')
-        img = img.resize((224, 224))
-        img_array = np.array(img) / 255.0  # Normalize ke [0, 1]
+        img = img.resize((IMAGE_SIZE, IMAGE_SIZE))
+        img_array = np.array(img)   # Normalize to [0, 1]
         img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
         
         # 4. Jalankan inference
-        # Type ignore untuk Pylance - SavedModel memiliki signatures
-        infer = MODEL.signatures["serving_default"]  # type: ignore
-        output = infer(tf.constant(img_array, dtype=tf.float32))
+        print(f"[Predict] Running inference on image with shape: {img_array.shape}")
+        print(f"[Predict] Image array min: {img_array.min()}, max: {img_array.max()}")
         
-        # Get predictions dari output (ambil key pertama secara dinamis)
-        output_key = list(output.keys())[0]
-        predictions_raw = output[output_key].numpy()[0]  # logits atau probabilities
+        # Use model.predict() for H5 Keras model
+        predictions = MODEL.predict(img_array, verbose=0)[0]
         
-        # Softmax untuk normalize jika belum
-        from scipy.special import softmax
-        predictions = softmax(predictions_raw)
-        
+        print(f"[Predict] Raw predictions: {predictions}")
+        print(f"[Predict] Class predictions: {dict(zip(CLASS_NAMES, predictions))}")
+        print(f"[Predict] Top prediction: {CLASS_NAMES[np.argmax(predictions)]} ({np.max(predictions)*100:.2f}%)")
         # 5. Get top 3 predictions
         top_indices = np.argsort(predictions)[::-1][:3]
         
@@ -315,14 +376,14 @@ def predict_disease():
                 "probability": float(predictions[idx])
             })
         
-        inference_time = (time.time() - start_time) * 1000  # Convert to ms
+        inference_time = (time.time() - start_time) * 1000 # Convert to ms
         
         # 6. Get disease information
         top_class = predictions_list[0]["class"]
         top_probability = predictions_list[0]["probability"]
         disease_data = get_disease_info(top_class)
         
-        # 7. Save to database if user_id provided
+        # 7. Save to database (Menggunakan Tabel DaunJeruk & Diagnosa)
         history_id = None
         if user_id:
             try:
@@ -330,36 +391,34 @@ def predict_disease():
                 if conn:
                     cursor = conn.cursor()
                     
-                    insert_query = """
-                        INSERT INTO DetectionHistory 
-                        (user_id, image_path, disease_name, confidence, severity, description, symptoms, treatment, prevention)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    # A. Simpan ke tabel DaunJeruk dulu (untuk dapat daun_id)
+                    # Kita simpan relative path agar bisa diakses frontend
+                    relative_path = f"uploads/{unique_filename}"
+                    
+                    insert_daun = "INSERT INTO DaunJeruk (user_id, citra) VALUES (%s, %s)"
+                    cursor.execute(insert_daun, (int(user_id), relative_path))
+                    daun_id = cursor.lastrowid
+                    
+                    # B. Simpan ke tabel Diagnosa
+                    # Format hasil: "Nama Penyakit (95.5%)"
+                    hasil_teks = f"{disease_data['disease']} ({round(top_probability * 100, 1)}%)"
+                    
+                    insert_diagnosa = """
+                        INSERT INTO Diagnosa (daun_id, hasil_deteksi) 
+                        VALUES (%s, %s)
                     """
+                    cursor.execute(insert_diagnosa, (daun_id, hasil_teks))
                     
-                    values = (
-                        int(user_id),
-                        unique_filename,  # Store only filename, not full path
-                        disease_data['disease'],
-                        round(top_probability * 100, 2),
-                        disease_data['severity'],
-                        disease_data['description'],
-                        json.dumps(disease_data['symptoms']),
-                        json.dumps(disease_data['treatment']),
-                        json.dumps(disease_data['prevention'])
-                    )
-                    
-                    cursor.execute(insert_query, values)
                     conn.commit()
                     history_id = cursor.lastrowid
-                    print(f"[Predict] Saved detection history ID={history_id} for user {user_id}")
+                    print(f"[Predict] Saved to DB. DaunID={daun_id}, DiagnosaID={history_id}")
+                    
             except Exception as db_error:
                 print(f"[Predict] Database error: {db_error}")
                 # Continue even if DB save fails
             finally:
-                if cursor:
-                    cursor.close()
-                if conn and conn.is_connected():
-                    conn.close()
+                if cursor: cursor.close()
+                if conn and conn.is_connected(): conn.close()
         
         # 8. Return response dengan rekomendasi lengkap
         return jsonify({
@@ -368,19 +427,15 @@ def predict_disease():
             "top_probability": top_probability,
             "inference_time_ms": round(inference_time, 2),
             "history_id": history_id,
-            "disease_info": {
-                "disease": disease_data['disease'],
-                "severity": disease_data['severity'],
-                "description": disease_data['description'],
-                "symptoms": disease_data['symptoms'],
-                "treatment": disease_data['treatment'],
-                "prevention": disease_data['prevention']
-            },
-            "image_url": f"/api/uploads/{unique_filename}"
+            # Frontend bisa langsung pakai objek ini untuk menampilkan UI
+            "disease_info": disease_data, 
+            "image_url": f"/uploads/{unique_filename}" # URL statis untuk frontend
         }), 200
         
     except Exception as e:
+        import traceback
         print(f"Error in predict_disease: {str(e)}")
+        print(f"Full traceback:\n{traceback.format_exc()}")
         return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
 
 
@@ -464,4 +519,4 @@ def serve_upload(filename):
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     # host='0.0.0.0' allows access from other devices on the same network
-    app.run(debug=False, host='0.0.0.0', port=port)
+    app.run(debug=True, host='0.0.0.0', port=port)
