@@ -26,20 +26,33 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Load ML model at startup
-# --- INTEGRATION: Load the new CNN model from Google Colab ---
+# --- INTEGRATION: Load the model (supports both CNN and MobileNetV2) ---
 MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'citrus_cnn_v1.h5')
 MODEL = None
+MODEL_TYPE = None  # Will be auto-detected: 'cnn' or 'mobilenetv2'
 CLASS_NAMES = ['Black spot', 'Canker', 'Greening', 'Healthy', 'Melanose']
-IMAGE_SIZE = 256  # Match the training size of the new CNN model
+IMAGE_SIZE = 256  # Match the training size
+
+def detect_model_type(model):
+    """Auto-detect if model is MobileNetV2-based or custom CNN"""
+    try:
+        # Check if model contains MobileNetV2 layers
+        for layer in model.layers:
+            if 'mobilenetv2' in layer.name.lower() or 'mobilenet' in layer.name.lower():
+                return 'mobilenetv2'
+        return 'cnn'
+    except:
+        return 'cnn'
 
 def load_model_at_startup():
-    """Load Keras H5 model from disk"""
-    global MODEL
+    """Load Keras H5 model from disk and detect architecture"""
+    global MODEL, MODEL_TYPE
     try:
         if os.path.exists(MODEL_PATH):
             print(f"Loading model from {MODEL_PATH}")
             MODEL = keras_load_model(MODEL_PATH)
-            print("Model loaded successfully!")
+            MODEL_TYPE = detect_model_type(MODEL)
+            print(f"Model loaded successfully! Architecture: {MODEL_TYPE.upper()}")
             print(f"Model input shape: {MODEL.input_shape}")
         else:
             print(f"Warning: Model not found at {MODEL_PATH}")
@@ -260,133 +273,103 @@ def login_user():
 
 @app.route('/api/predict', methods=['POST'])
 def predict_disease():
-    """
-    API untuk memprediksi penyakit daun berdasarkan gambar.
-    Menerima: multipart/form-data dengan key 'image' dan 'user_id' (opsional)
-    Mengembalikan: JSON dengan predictions, recommendations, dan menyimpan ke database
-    """
     if MODEL is None:
-        return jsonify({"error": "Model belum dimuat. Silakan coba lagi."}), 500
-    
+        return jsonify({"error": "Model AI belum siap"}), 500
+
     conn = None
-    cursor = None
-    
     try:
-        # 1. Periksa apakah ada file 'image' dalam request
         if 'image' not in request.files:
-            return jsonify({"error": "File 'image' diperlukan"}), 400
+            return jsonify({"error": "Tidak ada gambar"}), 400
         
         file = request.files['image']
+        user_id = request.form.get('user_id')
+        
         if file.filename == '':
-            return jsonify({"error": "File tidak dipilih"}), 400
-        
-        # Get user_id dari form data
-        user_id = request.form.get('user_id', None)
-        
-        # 2. Save uploaded image
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = secure_filename(file.filename or 'image.jpg')
-        unique_filename = f"{timestamp}_{filename}"
-        
-        # Pastikan folder uploads ada
-        if not os.path.exists(app.config['UPLOAD_FOLDER']):
-            os.makedirs(app.config['UPLOAD_FOLDER'])
+            return jsonify({"error": "Nama file kosong"}), 400
 
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-        
-        # Reset file pointer dan save
-        file.seek(0)
+        # 1. Simpan File
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = secure_filename(f"{timestamp}_{file.filename}")
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
-        
-        # 3. Baca dan preprocess gambar untuk inference
+
+        # 2. PREPROCESSING: SMART RESIZE (PENTING!)
         start_time = time.time()
-        
         img = Image.open(filepath).convert('RGB')
-        img = img.resize((IMAGE_SIZE, IMAGE_SIZE))
-        img_array = np.array(img)  # Normalize to [0, 1]
-        img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
         
-        # 4. Jalankan inference
-        print(f"[Predict] Running inference on image with shape: {img_array.shape}")
-        print(f"[Predict] Image array min: {img_array.min()}, max: {img_array.max()}")
+        # Buat kanvas hitam persegi sesuai ukuran model
+        target_size = (IMAGE_SIZE, IMAGE_SIZE)
+        new_img = Image.new("RGB", target_size, (0, 0, 0))
         
-        # Use model.predict() for H5 Keras model
+        # Resize gambar asli agar muat di kanvas tanpa distorsi (gepeng)
+        img.thumbnail(target_size, Image.Resampling.LANCZOS)
+        
+        # Tempel gambar asli di tengah-tengah kanvas hitam
+        left = (target_size[0] - img.size[0]) // 2
+        top = (target_size[1] - img.size[1]) // 2
+        new_img.paste(img, (left, top))
+        
+        # Konversi ke Array
+        img_array = np.array(new_img).astype(np.float32) 
+        
+        # HAPUS PEMBAGIAN 255.0 (MobileNetV2 ada preprocess internal)
+        # img_array = img_array / 255.0  <-- JANGAN DILAKUKAN
+        
+        # Tambah dimensi batch
+        img_array = np.expand_dims(img_array, axis=0)
+
+        # 3. Prediksi
         predictions = MODEL.predict(img_array, verbose=0)[0]
+        inference_time = (time.time() - start_time) * 1000
         
-        print(f"[Predict] Raw predictions: {predictions}")
-        print(f"[Predict] Class predictions: {dict(zip(CLASS_NAMES, predictions))}")
-        print(f"[Predict] Top prediction: {CLASS_NAMES[np.argmax(predictions)]} ({np.max(predictions)*100:.2f}%)")
-        # 5. Get top 3 predictions
-        top_indices = np.argsort(predictions)[::-1][:3]
+        # Ambil hasil tertinggi
+        top_index = np.argmax(predictions)
+        top_class = CLASS_NAMES[top_index]
+        top_prob = float(predictions[top_index])
         
-        predictions_list = []
-        for idx in top_indices:
-            predictions_list.append({
-                "class": CLASS_NAMES[idx],
-                "probability": float(predictions[idx])
-            })
-        
-        inference_time = (time.time() - start_time) * 1000 # Convert to ms
-        
-        # 6. Get disease information
-        top_class = predictions_list[0]["class"]
-        top_probability = predictions_list[0]["probability"]
-        disease_data = get_disease_info(top_class)
-        
-        # 7. Save to database (Menggunakan Tabel DaunJeruk & Diagnosa)
+        # Debug: Lihat probabilitas semua kelas di terminal
+        print(f"[Debug] File: {filename}")
+        for i, prob in enumerate(predictions):
+            print(f"  - {CLASS_NAMES[i]}: {prob*100:.2f}%")
+
+        # 4. Simpan ke Database
         history_id = None
         if user_id:
-            try:
-                conn = get_db_connection()
-                if conn:
-                    cursor = conn.cursor()
-                    
-                    # A. Simpan ke tabel DaunJeruk dulu (untuk dapat daun_id)
-                    # Kita simpan relative path agar bisa diakses frontend
-                    relative_path = f"uploads/{unique_filename}"
-                    
-                    insert_daun = "INSERT INTO DaunJeruk (user_id, citra) VALUES (%s, %s)"
-                    cursor.execute(insert_daun, (int(user_id), relative_path))
-                    daun_id = cursor.lastrowid
-                    
-                    # B. Simpan ke tabel Diagnosa
-                    # Format hasil: "Nama Penyakit (95.5%)"
-                    hasil_teks = f"{disease_data['disease']} ({round(top_probability * 100, 1)}%)"
-                    
-                    insert_diagnosa = """
-                        INSERT INTO Diagnosa (daun_id, hasil_deteksi) 
-                        VALUES (%s, %s)
-                    """
-                    cursor.execute(insert_diagnosa, (daun_id, hasil_teks))
-                    
-                    conn.commit()
-                    history_id = cursor.lastrowid
-                    print(f"[Predict] Saved to DB. DaunID={daun_id}, DiagnosaID={history_id}")
-                    
-            except Exception as db_error:
-                print(f"[Predict] Database error: {db_error}")
-                # Continue even if DB save fails
-            finally:
-                if cursor: cursor.close()
-                if conn and conn.is_connected(): conn.close()
+            conn = get_db_connection()
+            if conn:
+                cursor = conn.cursor()
+                sql_daun = "INSERT INTO DaunJeruk (user_id, citra) VALUES (%s, %s)"
+                cursor.execute(sql_daun, (user_id, filename))
+                daun_id = cursor.lastrowid
+                
+                hasil_text = f"{top_class} ({top_prob*100:.1f}%)"
+                sql_diag = "INSERT INTO Diagnosa (daun_id, hasil_deteksi) VALUES (%s, %s)"
+                cursor.execute(sql_diag, (daun_id, hasil_text))
+                
+                conn.commit()
+                history_id = cursor.lastrowid
+
+        # 5. Response
+        try:
+            disease_info = get_disease_info(top_class)
+        except Exception as e:
+            print(f"Error getting disease info: {e}")
+            disease_info = {}
         
-        # 8. Return response dengan rekomendasi lengkap
         return jsonify({
-            "predictions": predictions_list,
-            "top_class": top_class,
-            "top_probability": top_probability,
-            "inference_time_ms": round(inference_time, 2),
-            "history_id": history_id,
-            # Frontend bisa langsung pakai objek ini untuk menampilkan UI
-            "disease_info": disease_data, 
-            "image_url": f"/uploads/{unique_filename}" # URL statis untuk frontend
+            "class": top_class,
+            "confidence": f"{top_prob*100:.1f}%",
+            "inference_time": f"{inference_time:.2f} ms",
+            "image_url": f"/api/uploads/{filename}",
+            "disease_info": disease_info,
+            "history_id": history_id
         }), 200
-        
+
     except Exception as e:
-        import traceback
-        print(f"Error in predict_disease: {str(e)}")
-        print(f"Full traceback:\n{traceback.format_exc()}")
-        return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
+        print(f"Error Predict: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn: conn.close()
 
 
 # --- API DETECTION HISTORY ---
@@ -599,7 +582,7 @@ def submit_feedback_user():
         cursor = conn.cursor(dictionary=True)
         
         # Cek user exist dan ambil data
-        cursor.execute("SELECT id, nama, email, role FROM User WHERE id = %s", (user_id,))
+        cursor.execute("SELECT user_id, nama, email, role FROM User WHERE user_id = %s", (user_id,))
         user = cursor.fetchone()
         
         if not user:
@@ -875,7 +858,7 @@ def verify_superadmin(user_id):
         if conn is None:
             return False
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT role FROM User WHERE id = %s", (user_id,))
+        cursor.execute("SELECT role FROM User WHERE user_id = %s", (user_id,))
         user = cursor.fetchone()
         if user:
             user_data: dict = user  # type: ignore

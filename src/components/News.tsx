@@ -121,6 +121,23 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [editingArticleId, setEditingArticleId] = useState<string | null>(null);
   
+  // Check user role
+  const [userRole, setUserRole] = useState<string>('user');
+  
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        const user = JSON.parse(stored);
+        setUserRole(user.role || 'user');
+      }
+    } catch (error) {
+      console.error('Error loading user role:', error);
+    }
+  }, []);
+  
+  const isAdmin = userRole === 'superadmin';
+  
   // Form state untuk membuat berita baru
   const [newArticle, setNewArticle] = useState({
     title: "",
@@ -391,14 +408,17 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
             <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-6">
               Informasi terbaru seputar teknologi, budidaya, pasar, dan penelitian di industri jeruk Indonesia
             </p>
-            <Button 
-              onClick={() => setShowCreateDialog(true)}
-              className="bg-gradient-to-r from-[#2ECC71] to-[#F39C12] hover:from-[#27AE60] hover:to-[#E67E22] text-white shadow-lg"
-              size="lg"
-            >
-              <Plus className="w-5 h-5 mr-2" />
-              Buat Berita Baru
-            </Button>
+            {/* Tombol Buat Berita - Hanya untuk Superadmin */}
+            {isAdmin && (
+              <Button 
+                onClick={() => setShowCreateDialog(true)}
+                className="bg-gradient-to-r from-[#2ECC71] to-[#F39C12] hover:from-[#27AE60] hover:to-[#E67E22] text-white shadow-lg"
+                size="lg"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Buat Berita Baru
+              </Button>
+            )}
           </div>
 
           {/* Filter Tabs */}
@@ -454,24 +474,29 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
                       <div className="flex items-center justify-between">
                         <span className="text-gray-500">Oleh {filteredNews[0].author}</span>
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEditArticle(filteredNews[0])}
-                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          >
-                            <Edit className="w-4 h-4 mr-1" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteArticle(filteredNews[0].id)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-4 h-4 mr-1" />
-                            Hapus
-                          </Button>
+                          {/* Edit & Delete - Hanya untuk Superadmin */}
+                          {isAdmin && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditArticle(filteredNews[0])}
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              >
+                                <Edit className="w-4 h-4 mr-1" />
+                                Edit
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDeleteArticle(filteredNews[0].id)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4 mr-1" />
+                                Hapus
+                              </Button>
+                            </>
+                          )}
                           <Button 
                             onClick={() => {
                               setSelectedArticle(filteredNews[0]);
@@ -521,22 +546,27 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
                       <div className="flex items-center justify-between pt-3 border-t">
                         <span className="text-gray-500 text-sm">{article.author}</span>
                         <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditArticle(article)}
-                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-7 px-2"
-                          >
-                            <Edit className="w-3 h-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteArticle(article.id)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50 h-7 px-2"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
+                          {/* Edit & Delete - Hanya untuk Superadmin */}
+                          {isAdmin && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditArticle(article)}
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-7 px-2"
+                              >
+                                <Edit className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteArticle(article.id)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50 h-7 px-2"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </>
+                          )}
                           <Button 
                             variant="ghost" 
                             size="sm" 

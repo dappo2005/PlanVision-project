@@ -1,133 +1,238 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
+import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import LandingPage from "./components/LandingPage";
 import Dashboard from "./components/Dashboard";
 import DiseaseDetector from "./components/DiseaseDetector";
 import ChatAI from "./components/ChatAI";
 import News from "./components/News";
 import Feedback from "./components/Feedback";
+import FeedbackGuest from "./components/FeedbackGuest";
+import MyFeedbacks from "./components/MyFeedbacks";
+import AdminFeedbackDashboard from "./components/admin/AdminFeedbackDashboard";
 import Contact from "./components/Contact";
 import Navbar from "./components/Navbar";
 import { Toaster } from "./components/ui/sonner";
 
-type Page = "landing" | "dashboard" | "detector" | "chat" | "news" | "feedback" | "contact";
+// Protected Route Component
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-export default function App() {
-  const [currentPage, setCurrentPage] = useState<Page>("landing");
-  const [showLoginDialog, setShowLoginDialog] = useState(false);
-
-  // Load persisted login state
   useEffect(() => {
     try {
       const stored = localStorage.getItem('user');
-      if (stored) {
-        setCurrentPage("dashboard");
-      }
+      setIsAuthenticated(!!stored);
     } catch (_) {
-      // ignore storage errors
+      setIsAuthenticated(false);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
+  if (isLoading) return null;
+  return isAuthenticated ? <>{children}</> : <Navigate to="/" replace />;
+}
+
+export default function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Check auth status on mount and route change
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('user');
+      setIsAuthenticated(!!stored);
+    } catch (_) {
+      setIsAuthenticated(false);
+    }
+  }, [location.pathname]);
+
   const handleLogin = () => {
-    setCurrentPage("dashboard");
+    setIsAuthenticated(true);
     setShowLoginDialog(false);
+    navigate("/dashboard");
   };
 
   const handleLogout = () => {
     try { localStorage.removeItem('user'); } catch (_) {}
-    setCurrentPage("landing");
+    setIsAuthenticated(false);
+    navigate("/");
   };
 
-  const navigateToPage = (page: Page) => {
-    setCurrentPage(page);
-  };
+  // Determine navbar variant based on current path
+  const isLandingPage = location.pathname === "/";
+  const isGuestPage = location.pathname === "/feedback/guest";
 
   return (
     <>
-      {/* Navbar - Always visible */}
-      <Navbar
-        variant={currentPage === "landing" ? "landing" : "authenticated"}
-        onLogin={() => setShowLoginDialog(true)}
-        onLogout={handleLogout}
-        onNavigateToDashboard={() => navigateToPage("dashboard")}
-        onNavigateToDetector={() => navigateToPage("detector")}
-        onNavigateToChatAI={() => navigateToPage("chat")}
-        onNavigateToNews={() => navigateToPage("news")}
-        onNavigateToFeedback={() => navigateToPage("feedback")}
-        onNavigateToContact={() => navigateToPage("contact")}
-      />
+      {/* Navbar - Only show on non-guest pages */}
+      {!isGuestPage && (
+        <Navbar
+          variant={isLandingPage ? "landing" : "authenticated"}
+          onLogin={() => setShowLoginDialog(true)}
+          onLogout={handleLogout}
+          onNavigateToDashboard={() => navigate("/dashboard")}
+          onNavigateToDetector={() => navigate("/disease-detector")}
+          onNavigateToChatAI={() => navigate("/chat-ai")}
+          onNavigateToNews={() => navigate("/news")}
+          onNavigateToFeedback={() => navigate("/feedback")}
+          onNavigateToContact={() => navigate("/contact")}
+        />
+      )}
 
-      {currentPage === "landing" && (
-        <LandingPage 
-          onLogin={handleLogin}
-          showLoginDialog={showLoginDialog}
-          setShowLoginDialog={setShowLoginDialog}
+      <Routes>
+        {/* Public Routes */}
+        <Route 
+          path="/" 
+          element={
+            <LandingPage 
+              onLogin={handleLogin}
+              showLoginDialog={showLoginDialog}
+              setShowLoginDialog={setShowLoginDialog}
+            />
+          } 
         />
-      )}
-      {currentPage === "dashboard" && (
-        <Dashboard 
-          onLogout={handleLogout} 
-          onNavigateToDetector={() => navigateToPage("detector")}
-          onNavigateToChatAI={() => navigateToPage("chat")}
-          onNavigateToNews={() => navigateToPage("news")}
-          onNavigateToFeedback={() => navigateToPage("feedback")}
-          onNavigateToContact={() => navigateToPage("contact")}
+        
+        {/* Guest Feedback (Public) */}
+        <Route 
+          path="/feedback/guest" 
+          element={<FeedbackGuest />} 
         />
-      )}
-      {currentPage === "detector" && (
-        <DiseaseDetector 
-          onLogout={handleLogout}
-          onNavigateToDashboard={() => navigateToPage("dashboard")}
-          onNavigateToDetector={() => navigateToPage("detector")}
-          onNavigateToChatAI={() => navigateToPage("chat")}
-          onNavigateToNews={() => navigateToPage("news")}
-          onNavigateToFeedback={() => navigateToPage("feedback")}
-          onNavigateToContact={() => navigateToPage("contact")}
+        
+        {/* Protected Routes */}
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              <Dashboard 
+                onLogout={handleLogout} 
+                onNavigateToDetector={() => navigate("/disease-detector")}
+                onNavigateToChatAI={() => navigate("/chat-ai")}
+                onNavigateToNews={() => navigate("/news")}
+                onNavigateToFeedback={() => navigate("/feedback")}
+                onNavigateToContact={() => navigate("/contact")}
+              />
+            </ProtectedRoute>
+          } 
         />
-      )}
-      {currentPage === "chat" && (
-        <ChatAI 
-          onLogout={handleLogout}
-          onNavigateToDashboard={() => navigateToPage("dashboard")}
-          onNavigateToDetector={() => navigateToPage("detector")}
-          onNavigateToChatAI={() => navigateToPage("chat")}
-          onNavigateToNews={() => navigateToPage("news")}
-          onNavigateToFeedback={() => navigateToPage("feedback")}
-          onNavigateToContact={() => navigateToPage("contact")}
+        
+        <Route 
+          path="/disease-detector" 
+          element={
+            <ProtectedRoute>
+              <DiseaseDetector 
+                onLogout={handleLogout}
+                onNavigateToDashboard={() => navigate("/dashboard")}
+                onNavigateToDetector={() => navigate("/disease-detector")}
+                onNavigateToChatAI={() => navigate("/chat-ai")}
+                onNavigateToNews={() => navigate("/news")}
+                onNavigateToFeedback={() => navigate("/feedback")}
+                onNavigateToContact={() => navigate("/contact")}
+              />
+            </ProtectedRoute>
+          } 
         />
-      )}
-      {currentPage === "news" && (
-        <News 
-          onLogout={handleLogout}
-          onNavigateToDashboard={() => navigateToPage("dashboard")}
-          onNavigateToDetector={() => navigateToPage("detector")}
-          onNavigateToChatAI={() => navigateToPage("chat")}
-          onNavigateToNews={() => navigateToPage("news")}
-          onNavigateToFeedback={() => navigateToPage("feedback")}
-          onNavigateToContact={() => navigateToPage("contact")}
+        
+        <Route 
+          path="/chat-ai" 
+          element={
+            <ProtectedRoute>
+              <ChatAI 
+                onLogout={handleLogout}
+                onNavigateToDashboard={() => navigate("/dashboard")}
+                onNavigateToDetector={() => navigate("/disease-detector")}
+                onNavigateToChatAI={() => navigate("/chat-ai")}
+                onNavigateToNews={() => navigate("/news")}
+                onNavigateToFeedback={() => navigate("/feedback")}
+                onNavigateToContact={() => navigate("/contact")}
+              />
+            </ProtectedRoute>
+          } 
         />
-      )}
-      {currentPage === "feedback" && (
-        <Feedback 
-          onLogout={handleLogout}
-          onNavigateToDashboard={() => navigateToPage("dashboard")}
-          onNavigateToDetector={() => navigateToPage("detector")}
-          onNavigateToChatAI={() => navigateToPage("chat")}
-          onNavigateToNews={() => navigateToPage("news")}
-          onNavigateToFeedback={() => navigateToPage("feedback")}
-          onNavigateToContact={() => navigateToPage("contact")}
+        
+        <Route 
+          path="/news" 
+          element={
+            <ProtectedRoute>
+              <News 
+                onLogout={handleLogout}
+                onNavigateToDashboard={() => navigate("/dashboard")}
+                onNavigateToDetector={() => navigate("/disease-detector")}
+                onNavigateToChatAI={() => navigate("/chat-ai")}
+                onNavigateToNews={() => navigate("/news")}
+                onNavigateToFeedback={() => navigate("/feedback")}
+                onNavigateToContact={() => navigate("/contact")}
+              />
+            </ProtectedRoute>
+          } 
         />
-      )}
-      {currentPage === "contact" && (
-        <Contact 
-          onLogout={handleLogout}
-          onNavigateToDashboard={() => navigateToPage("dashboard")}
-          onNavigateToDetector={() => navigateToPage("detector")}
-          onNavigateToChatAI={() => navigateToPage("chat")}
-          onNavigateToNews={() => navigateToPage("news")}
-          onNavigateToFeedback={() => navigateToPage("feedback")}
-          onNavigateToContact={() => navigateToPage("contact")}
+        
+        <Route 
+          path="/feedback" 
+          element={
+            <ProtectedRoute>
+              <Feedback 
+                onLogout={handleLogout}
+                onNavigateToDashboard={() => navigate("/dashboard")}
+                onNavigateToDetector={() => navigate("/disease-detector")}
+                onNavigateToChatAI={() => navigate("/chat-ai")}
+                onNavigateToNews={() => navigate("/news")}
+                onNavigateToFeedback={() => navigate("/feedback")}
+                onNavigateToContact={() => navigate("/contact")}
+              />
+            </ProtectedRoute>
+          } 
         />
-      )}
+        
+        <Route 
+          path="/contact" 
+          element={
+            <ProtectedRoute>
+              <Contact 
+                onLogout={handleLogout}
+                onNavigateToDashboard={() => navigate("/dashboard")}
+                onNavigateToDetector={() => navigate("/disease-detector")}
+                onNavigateToChatAI={() => navigate("/chat-ai")}
+                onNavigateToNews={() => navigate("/news")}
+                onNavigateToFeedback={() => navigate("/feedback")}
+                onNavigateToContact={() => navigate("/contact")}
+              />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* My Feedbacks (User) */}
+        <Route 
+          path="/feedback/my" 
+          element={
+            <ProtectedRoute>
+              <MyFeedbacks 
+                onLogout={handleLogout}
+                onNavigateToDashboard={() => navigate("/dashboard")}
+              />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Admin Feedback Dashboard (Superadmin Only) */}
+        <Route 
+          path="/admin/feedbacks" 
+          element={
+            <ProtectedRoute>
+              <AdminFeedbackDashboard 
+                onLogout={handleLogout}
+                onNavigateToDashboard={() => navigate("/dashboard")}
+              />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Catch all - redirect to landing */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+
       <Toaster />
     </>
   );

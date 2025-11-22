@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
-import { Leaf, ArrowLeft, Home, MessageSquare, Star, Send, CheckCircle2, ThumbsUp, AlertCircle } from "lucide-react";
+import { Leaf, ArrowLeft, Home, MessageSquare, Star, Send, CheckCircle2, ThumbsUp, AlertCircle, History } from "lucide-react";
 import { toast } from "sonner";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
+import { useNavigate } from "react-router-dom";
 
 interface FeedbackProps {
   onLogout: () => void;
@@ -15,40 +16,91 @@ interface FeedbackProps {
 }
 
 export default function Feedback({ onLogout, onNavigateToDashboard }: FeedbackProps) {
+  const navigate = useNavigate();
+const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
+  
   const [formData, setFormData] = useState({
-    name: "",
-    email: "",
     rating: "5",
     category: "umum",
     message: ""
   });
+  const [userData, setUserData] = useState<{id: number, nama: string, email: string} | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Load user data from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        const user = JSON.parse(stored);
+        setUserData({
+          id: user.user_id || user.id,
+          nama: user.nama,
+          email: user.email
+        });
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!userData) {
+      toast.error("Error", {
+        description: "User data tidak ditemukan. Silakan login ulang."
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
-    // Simulate submission
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setIsSubmitted(true);
-      toast.success("Terima kasih atas masukan Anda!", {
-        description: "Feedback Anda sangat berharga untuk pengembangan PlantVision"
+    try {
+      const response = await fetch(`${API_URL}/api/feedback/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userData.id,
+          rating: parseInt(formData.rating),
+          category: formData.category,
+          message: formData.message
+        })
       });
-      
-      // Reset form after 3 seconds
-      setTimeout(() => {
-        setIsSubmitted(false);
-        setFormData({
-          name: "",
-          email: "",
-          rating: "5",
-          category: "umum",
-          message: ""
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setIsSubmitted(true);
+        toast.success("Terima kasih atas masukan Anda!", {
+          description: "Feedback Anda sangat berharga untuk pengembangan PlantVision"
         });
-      }, 3000);
-    }, 1500);
+        
+        // Reset form after 3 seconds
+        setTimeout(() => {
+          setIsSubmitted(false);
+          setFormData({
+            rating: "5",
+            category: "umum",
+            message: ""
+          });
+        }, 3000);
+      } else {
+        toast.error("Gagal mengirim feedback", {
+          description: data.error || "Terjadi kesalahan. Silakan coba lagi."
+        });
+      }
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
+      toast.error("Gagal mengirim feedback", {
+        description: "Tidak dapat terhubung ke server. Silakan cek koneksi Anda."
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (field: string, value: string) => {
@@ -78,6 +130,13 @@ export default function Feedback({ onLogout, onNavigateToDashboard }: FeedbackPr
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <Button 
+                variant="outline"
+                onClick={() => navigate('/feedback/my')}
+              >
+                <History className="w-4 h-4 mr-2" />
+                Riwayat Feedback
+              </Button>
               <Button 
                 variant="outline"
                 onClick={onNavigateToDashboard}
@@ -140,30 +199,16 @@ export default function Feedback({ onLogout, onNavigateToDashboard }: FeedbackPr
                   </CardHeader>
                   <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-6">
-                      {/* Name */}
-                      <div className="space-y-2">
-                        <Label htmlFor="name">Nama Lengkap *</Label>
-                        <Input
-                          id="name"
-                          value={formData.name}
-                          onChange={(e) => handleChange("name", e.target.value)}
-                          placeholder="Masukkan nama lengkap Anda"
-                          required
-                        />
-                      </div>
-
-                      {/* Email */}
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email *</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          value={formData.email}
-                          onChange={(e) => handleChange("email", e.target.value)}
-                          placeholder="nama@email.com"
-                          required
-                        />
-                      </div>
+                      {/* User Info Display */}
+                      {userData && (
+                        <Alert className="border-blue-200 bg-blue-50">
+                          <AlertCircle className="h-4 w-4 text-blue-600" />
+                          <AlertTitle className="text-blue-900">Feedback atas nama:</AlertTitle>
+                          <AlertDescription className="text-blue-800">
+                            <strong>{userData.nama}</strong> ({userData.email})
+                          </AlertDescription>
+                        </Alert>
+                      )}
 
                       {/* Rating */}
                       <div className="space-y-3">
@@ -201,7 +246,7 @@ export default function Feedback({ onLogout, onNavigateToDashboard }: FeedbackPr
                         <Label>Kategori Feedback *</Label>
                         <RadioGroup 
                           value={formData.category}
-                          onValueChange={(value) => handleChange("category", value)}
+                          onValueChange={(value: string) => handleChange("category", value)}
                         >
                           <div className="flex items-center space-x-2">
                             <RadioGroupItem value="umum" id="umum" />
