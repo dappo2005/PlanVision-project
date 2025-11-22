@@ -10,7 +10,7 @@ import { Leaf, Camera, Network, BarChart3, FileText, Cloud, Linkedin, Github, Ma
 import { useState } from "react";
 import React from "react";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://192.168.100.87:5000";
+const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -337,7 +337,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
                 <Input
                   id="login-password"
                   type={showLoginPassword ? "text" : "password"}
-                  placeholder=" ••••••••"
+                  placeholder="••••••••"
                   value={loginPassword}
                   onChange={(e) => {
                   setLoginPassword(e.target.value);
@@ -366,7 +366,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
                 <Checkbox
                   id="remember-me"
                   checked={rememberMe}
-                  onCheckedChange={(checked) => setRememberMe(checked === true)}
+                  onCheckedChange={(checked: boolean | 'indeterminate') => setRememberMe(checked === true)}
                 />
                 <Label htmlFor="remember-me" className="text-sm font-normal cursor-pointer">
                   Ingat saya
@@ -591,7 +591,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
                   <Checkbox
                     id="accept-terms"
                     checked={acceptTerms}
-                    onCheckedChange={(checked) => {
+                    onCheckedChange={(checked: boolean | 'indeterminate') => {
                       setAcceptTerms(checked === true);
                       setRegisterError("");
                     }}
