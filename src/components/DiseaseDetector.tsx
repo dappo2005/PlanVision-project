@@ -7,7 +7,7 @@ import { Badge } from "./ui/badge";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
+const API_URL = import.meta.env.VITE_API_URL || "http://192.168.18.87:5000";
 
 interface DetectionResult {
   disease: string;
@@ -240,28 +240,31 @@ export default function DiseaseDetector({
 
       const data = await apiResponse.json();
       
+      // Parse confidence from "35.44%" string to number
+      const confidenceValue = parseFloat(data.confidence.replace('%', ''));
+      
       // Map API response to our result format
       const mappedResult: DetectionResult = {
         disease: data.disease_info.disease,
-        confidence: Math.round(data.top_probability * 100),
+        confidence: Math.round(confidenceValue),
         severity: data.disease_info.severity as "rendah" | "sedang" | "tinggi",
         description: data.disease_info.description,
         symptoms: data.disease_info.symptoms,
         treatment: data.disease_info.treatment,
         prevention: data.disease_info.prevention,
-        color: getColorForDisease(data.top_class)
+        color: getColorForDisease(data.class)
       };
 
       setResult(mappedResult);
       
       // Warning jika confidence rendah
-      if (data.top_probability < 0.75) {
+      if (confidenceValue < 75) {
         toast.warning("Confidence rendah - Hasil mungkin kurang akurat", {
-          description: `Model hanya ${Math.round(data.top_probability * 100)}% yakin. Coba foto dengan pencahayaan lebih baik atau angle berbeda.`
+          description: `Model hanya ${Math.round(confidenceValue)}% yakin. Coba foto dengan pencahayaan lebih baik atau angle berbeda.`
         });
       } else {
         toast.success("Deteksi berhasil!", {
-          description: `Terdeteksi: ${data.disease_info.disease} (${Math.round(data.top_probability * 100)}% yakin)`
+          description: `Terdeteksi: ${data.disease_info.disease} (${Math.round(confidenceValue)}% yakin)`
         });
       }
 
