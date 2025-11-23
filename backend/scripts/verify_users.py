@@ -17,3 +17,4 @@ rows = cur.fetchall()
 print("Last 5 users:")
 print(json.dumps(rows, indent=2, default=str))
 cur.close(); conn.close()
+

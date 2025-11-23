@@ -6,3 +6,4 @@ try:
     print('check', bcrypt.checkpw(p, h))
 except Exception as e:
     print('error', type(e).__name__, str(e))
+

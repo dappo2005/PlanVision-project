@@ -473,3 +473,4 @@ export default function Contact({ onLogout, onNavigateToDashboard }: ContactProp
     </div>
   );
 }
+

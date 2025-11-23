@@ -88,3 +88,4 @@ for col in columns:
 cursor.close()
 conn.close()
 print("\n✅ Database updated successfully!")
+

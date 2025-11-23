@@ -995,3 +995,4 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
     </div>
   );
 }
+

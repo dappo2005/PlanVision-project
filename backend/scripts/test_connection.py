@@ -48,3 +48,4 @@ finally:
         cursor.close()
         connection.close()
         print("Koneksi MySQL ditutup")
+

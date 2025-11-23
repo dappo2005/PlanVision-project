@@ -24,4 +24,5 @@ def login():
     }), 200
 
 if __name__ == '__main__':
+    # bind ke semua interface supaya dapat diakses melalui 192.168.x.x
     app.run(host='0.0.0.0', port=5000, debug=True)

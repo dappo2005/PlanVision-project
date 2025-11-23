@@ -22,3 +22,4 @@ for key, value in infer.structured_outputs.items():
 print("\n✅ Use this output key in app.py:")
 output_key = list(infer.structured_outputs.keys())[0]
 print(f"   predictions_raw = output['{output_key}'].numpy()[0]")
+
