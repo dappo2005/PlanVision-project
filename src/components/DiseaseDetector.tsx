@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Upload, Camera, AlertCircle, CheckCircle2, Leaf, Droplets, Bug, Eye, ArrowLeft, Home, FileText, Download } from "lucide-react";
@@ -7,11 +7,7 @@ import { Badge } from "./ui/badge";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 
-<<<<<<< HEAD
-const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000  :5000";
-=======
-const API_URL = import.meta.env.VITE_API_URL || "http://192.168.18.87:5000";
->>>>>>> caf5c39b32a3b5b0c93fec182b6b7049841c575c
+const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000"
 
 interface DetectionResult {
   disease: string;
@@ -182,6 +178,31 @@ export default function DiseaseDetector({
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<DetectionResult | null>(null);
+
+  // Load data dari drone monitoring jika ada
+  useEffect(() => {
+    const droneData = localStorage.getItem('drone_detection_result');
+    if (droneData) {
+      try {
+        const parsed = JSON.parse(droneData);
+        if (parsed.image && parsed.result) {
+          // Set gambar dan hasil deteksi
+          setSelectedImage(parsed.image);
+          setResult(parsed.result);
+          
+          // Clear localStorage setelah digunakan
+          localStorage.removeItem('drone_detection_result');
+          
+          toast.success("Data dari Drone Monitoring dimuat!", {
+            description: `Hasil deteksi: ${parsed.result.disease} (${parsed.result.confidence}% yakin)`
+          });
+        }
+      } catch (error) {
+        console.error("Error parsing drone detection result:", error);
+        localStorage.removeItem('drone_detection_result');
+      }
+    }
+  }, []);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

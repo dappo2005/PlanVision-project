@@ -133,11 +133,13 @@ export default function Contact({ onLogout, onNavigateToDashboard }: ContactProp
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Kembali
               </Button>
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-gradient-to-br from-[#2ECC71] to-[#F39C12] rounded-lg flex items-center justify-center">
-                  <Mail className="w-6 h-6 text-white" />
-                </div>
-                <span className="text-gray-900 tracking-tight">PlantVision - Hubungi Kami</span>
+              <div className="flex items-center gap-3">
+                <img 
+                  src="/images/plantvision-logo.png" 
+                  alt="PlantVision Logo" 
+                  className="h-10 w-auto"
+                />
+                <span className="text-gray-900 tracking-tight font-semibold">Hubungi Kami</span>
               </div>
             </div>
             <div className="flex items-center gap-3">

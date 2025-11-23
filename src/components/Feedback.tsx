@@ -17,7 +17,10 @@ interface FeedbackProps {
 
 export default function Feedback({ onLogout, onNavigateToDashboard }: FeedbackProps) {
   const navigate = useNavigate();
-const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
+const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+
+// Debug: Log API URL saat component mount
+console.log("[Feedback] API_URL:", API_URL);
   
   const [formData, setFormData] = useState({
     rating: "5",
@@ -27,6 +30,8 @@ const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
   const [userData, setUserData] = useState<{id: number, nama: string, email: string} | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [publicFeedbacks, setPublicFeedbacks] = useState<any[]>([]);
+  const [isLoadingFeedbacks, setIsLoadingFeedbacks] = useState(false);
 
   // Load user data from localStorage
   useEffect(() => {
@@ -45,6 +50,49 @@ const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
     }
   }, []);
 
+  // Load public feedbacks (riwayat ulasan)
+  useEffect(() => {
+    const loadPublicFeedbacks = async () => {
+      setIsLoadingFeedbacks(true);
+      try {
+        // Tambahkan timeout 5 detik
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const response = await fetch(`${API_URL}/api/feedback/public?limit=10&sort=date_desc`, {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          const data = await response.json();
+          setPublicFeedbacks(data.feedbacks || []);
+        } else {
+          console.error('Failed to load feedbacks:', response.status);
+          toast.error("Gagal memuat ulasan", {
+            description: "Pastikan backend berjalan di " + API_URL
+          });
+        }
+      } catch (error: any) {
+        if (error.name === 'AbortError') {
+          toast.error("Timeout memuat ulasan", {
+            description: "Backend tidak merespons. Pastikan backend Flask berjalan di " + API_URL
+          });
+        } else {
+          console.error('Error loading public feedbacks:', error);
+          toast.error("Gagal memuat ulasan", {
+            description: error.message || "Tidak bisa terhubung ke backend"
+          });
+        }
+      } finally {
+        setIsLoadingFeedbacks(false);
+      }
+    };
+
+    loadPublicFeedbacks();
+  }, [isSubmitted]); // Reload saat ada feedback baru
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -58,6 +106,10 @@ const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
     setIsSubmitting(true);
 
     try {
+      // Tambahkan timeout 10 detik untuk submit
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
       const response = await fetch(`${API_URL}/api/feedback/submit`, {
         method: 'POST',
         headers: {
@@ -68,8 +120,11 @@ const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
           rating: parseInt(formData.rating),
           category: formData.category,
           message: formData.message
-        })
+        }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 
@@ -78,6 +133,33 @@ const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
         toast.success("Terima kasih atas masukan Anda!", {
           description: "Feedback Anda sangat berharga untuk pengembangan PlantVision"
         });
+        console.log("[Feedback] Submit berhasil:", data);
+        
+        // Reload feedbacks setelah 500ms (biarkan database commit dulu)
+        setTimeout(() => {
+          const reloadController = new AbortController();
+          const reloadTimeout = setTimeout(() => reloadController.abort(), 5000);
+          fetch(`${API_URL}/api/feedback/public?limit=10&sort=date_desc`, {
+            signal: reloadController.signal
+          })
+            .then(res => {
+              clearTimeout(reloadTimeout);
+              return res.json();
+            })
+            .then(data => {
+              setPublicFeedbacks(data.feedbacks || []);
+              console.log("[Feedback] Reloaded feedbacks:", data.feedbacks?.length || 0);
+              toast.success("Feedback Anda sudah muncul di riwayat ulasan!", {
+                description: "Terima kasih atas kontribusi Anda"
+              });
+            })
+            .catch(err => {
+              clearTimeout(reloadTimeout);
+              if (err.name !== 'AbortError') {
+                console.error('Error reloading feedbacks:', err);
+              }
+            });
+        }, 500);
         
         // Reset form after 3 seconds
         setTimeout(() => {
@@ -89,15 +171,29 @@ const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
           });
         }, 3000);
       } else {
+        console.error("[Feedback] Submit gagal:", response.status, data);
         toast.error("Gagal mengirim feedback", {
-          description: data.error || "Terjadi kesalahan. Silakan coba lagi."
+          description: data.error || `Error ${response.status}: Terjadi kesalahan. Silakan coba lagi.`
+        });
+        
+        // Jika user tidak ditemukan, sarankan login ulang
+        if (data.error && data.error.includes("User tidak ditemukan")) {
+          toast.error("User tidak ditemukan", {
+            description: "Silakan login ulang atau gunakan fitur Feedback untuk Guest"
+          });
+        }
+      }
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        toast.error("Timeout mengirim feedback", {
+          description: "Backend tidak merespons. Pastikan backend Flask berjalan di " + API_URL
+        });
+      } else {
+        console.error('Error submitting feedback:', error);
+        toast.error("Gagal mengirim feedback", {
+          description: error.message || "Tidak dapat terhubung ke server. Silakan cek koneksi Anda."
         });
       }
-    } catch (error) {
-      console.error('Error submitting feedback:', error);
-      toast.error("Gagal mengirim feedback", {
-        description: "Tidak dapat terhubung ke server. Silakan cek koneksi Anda."
-      });
     } finally {
       setIsSubmitting(false);
     }
@@ -122,11 +218,13 @@ const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Kembali
               </Button>
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-gradient-to-br from-[#2ECC71] to-[#F39C12] rounded-lg flex items-center justify-center">
-                  <MessageSquare className="w-6 h-6 text-white" />
-                </div>
-                <span className="text-gray-900 tracking-tight">PlantVision - Saran & Kritik</span>
+              <div className="flex items-center gap-3">
+                <img 
+                  src="/images/plantvision-logo.png" 
+                  alt="PlantVision Logo" 
+                  className="h-10 w-auto"
+                />
+                <span className="text-gray-900 tracking-tight font-semibold">Saran & Kritik</span>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -294,7 +392,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
                         {isSubmitting ? (
                           <>
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                            Mengirim...
+                            Mengirim... (max 10 detik)
                           </>
                         ) : (
                           <>
@@ -303,6 +401,11 @@ const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
                           </>
                         )}
                       </Button>
+                      {isSubmitting && (
+                        <p className="text-xs text-center text-gray-500 mt-2">
+                          ⏱️ Jika loading lama, pastikan backend Flask berjalan di {API_URL}
+                        </p>
+                      )}
                     </form>
                   </CardContent>
                 </Card>
@@ -365,6 +468,103 @@ const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
                 </CardContent>
               </Card>
             </div>
+          </div>
+
+          {/* Riwayat Ulasan (Google Reviews Style) */}
+          <div className="mt-12">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">Riwayat Ulasan</h2>
+                <p className="text-gray-600">Lihat apa yang dikatakan pengguna lain tentang PlantVision</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Star className="w-6 h-6 fill-[#F39C12] text-[#F39C12]" />
+                <span className="text-2xl font-bold text-gray-900">
+                  {publicFeedbacks.length > 0 
+                    ? (publicFeedbacks.reduce((sum, fb) => sum + fb.rating, 0) / publicFeedbacks.length).toFixed(1)
+                    : '0.0'}
+                </span>
+                <span className="text-gray-600">({publicFeedbacks.length} ulasan)</span>
+              </div>
+            </div>
+
+            {isLoadingFeedbacks ? (
+              <div className="text-center py-12">
+                <div className="w-8 h-8 border-4 border-[#2ECC71] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-gray-600 mb-2">Memuat ulasan...</p>
+                <p className="text-xs text-gray-500">
+                  Jika loading lama, pastikan backend Flask berjalan di {API_URL}
+                </p>
+              </div>
+            ) : publicFeedbacks.length === 0 ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-600">Belum ada ulasan. Jadilah yang pertama memberikan ulasan!</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {publicFeedbacks.map((feedback) => (
+                  <Card key={feedback.feedback_id} className="hover:shadow-lg transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex items-start gap-4">
+                        {/* Avatar */}
+                        <div className="w-12 h-12 bg-gradient-to-br from-[#2ECC71] to-[#F39C12] rounded-full flex items-center justify-center flex-shrink-0">
+                          <span className="text-white font-bold text-lg">
+                            {feedback.nama.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <h3 className="font-semibold text-gray-900">{feedback.nama}</h3>
+                              <p className="text-xs text-gray-500">
+                                {feedback.created_at 
+                                  ? new Date(feedback.created_at).toLocaleDateString('id-ID', {
+                                      year: 'numeric',
+                                      month: 'long',
+                                      day: 'numeric'
+                                    })
+                                  : 'Tanggal tidak tersedia'}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={`w-4 h-4 ${
+                                    star <= feedback.rating
+                                      ? "fill-[#F39C12] text-[#F39C12]"
+                                      : "text-gray-300"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Category Badge */}
+                          <div className="mb-3">
+                            <span className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                              {feedback.category === 'umum' ? 'Umum' :
+                               feedback.category === 'fitur' ? 'Fitur' :
+                               feedback.category === 'bug' ? 'Bug' :
+                               feedback.category === 'desain' ? 'Desain' :
+                               feedback.category === 'saran' ? 'Saran' : feedback.category}
+                            </span>
+                          </div>
+
+                          {/* Message */}
+                          <p className="text-gray-700 leading-relaxed">{feedback.message}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

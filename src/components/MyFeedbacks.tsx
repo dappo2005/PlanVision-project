@@ -136,10 +136,12 @@ export default function MyFeedbacks({ onLogout, onNavigateToDashboard }: MyFeedb
                 Kembali
               </Button>
               <div className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-gradient-to-br from-[#2ECC71] to-[#F39C12] rounded-lg flex items-center justify-center">
-                  <MessageSquare className="w-6 h-6 text-white" />
-                </div>
-                <span className="text-gray-900 tracking-tight">Riwayat Feedback Saya</span>
+                <img 
+                  src="/images/plantvision-logo.png" 
+                  alt="PlantVision Logo" 
+                  className="h-10 w-auto"
+                />
+                <span className="text-gray-900 tracking-tight font-semibold">Riwayat Feedback</span>
               </div>
             </div>
             <div className="flex items-center gap-3">
