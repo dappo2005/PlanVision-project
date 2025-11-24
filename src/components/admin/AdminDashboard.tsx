@@ -29,6 +29,17 @@ interface DashboardStats {
   recentActivity: any[];
 }
 
+interface User {
+  user_id: number;
+  nama: string;
+  email: string;
+  username: string;
+  phone: string | null;
+  role: string;
+  status: string;
+  created_at: string;
+}
+
 export default function AdminDashboard({ onLogout, onNavigateToDashboard }: AdminDashboardProps) {
   const navigate = useNavigate();
   const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
@@ -38,6 +49,14 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  
+  // Users management state
+  const [users, setUsers] = useState<User[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     // Load admin data
@@ -75,6 +94,41 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
       loadDashboardStats();
     }
   }, [adminId, isAdmin]);
+
+  // Load users when tab changes to users
+  useEffect(() => {
+    if (adminId && isAdmin && activeTab === 'users') {
+      loadUsers();
+    }
+  }, [adminId, isAdmin, activeTab, currentPage, searchQuery, roleFilter]);
+
+  const loadUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: '10',
+      });
+      
+      if (searchQuery) params.append('search', searchQuery);
+      if (roleFilter) params.append('role', roleFilter);
+      
+      const response = await fetch(`${API_URL}/api/admin/users?${params}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data.users || []);
+        setTotalPages(data.total_pages || 1);
+      } else {
+        toast.error("Gagal memuat data user");
+      }
+    } catch (error) {
+      console.error('Error loading users:', error);
+      toast.error("Gagal terhubung ke server");
+    } finally {
+      setUsersLoading(false);
+    }
+  };
 
   const loadDashboardStats = async () => {
     setIsLoading(true);
@@ -346,9 +400,9 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle>User Management</CardTitle>
-                    <CardDescription>Kelola semua pengguna sistem</CardDescription>
+                    <CardDescription>Kelola semua pengguna sistem ({stats?.totalUsers || 0} users)</CardDescription>
                   </div>
-                  <Button className="flex items-center gap-2">
+                  <Button className="flex items-center gap-2" disabled>
                     <UserPlus className="w-4 h-4" />
                     Tambah User
                   </Button>
@@ -356,23 +410,135 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2">
+                  {/* Search and Filter */}
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <Input
-                        placeholder="Cari user..."
+                        placeholder="Cari user (nama, email, username)..."
                         className="pl-10"
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setCurrentPage(1);
+                        }}
                       />
                     </div>
-                    <Button variant="outline" size="sm">
-                      <Filter className="w-4 h-4 mr-2" />
-                      Filter
-                    </Button>
+                    <select
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      value={roleFilter}
+                      onChange={(e) => {
+                        setRoleFilter(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <option value="">Semua Role</option>
+                      <option value="user">User</option>
+                      <option value="superadmin">Superadmin</option>
+                    </select>
                   </div>
-                  <div className="text-center py-8 text-gray-500">
-                    <Users className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                    <p>User management akan segera tersedia</p>
-                  </div>
+
+                  {/* Users Table */}
+                  {usersLoading ? (
+                    <div className="text-center py-12">
+                      <Activity className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-2" />
+                      <p className="text-gray-500">Memuat data user...</p>
+                    </div>
+                  ) : users.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Users className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                      <p className="text-gray-500">Tidak ada user ditemukan</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="border rounded-lg overflow-hidden">
+                        <table className="w-full">
+                          <thead className="bg-gray-50 border-b">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Username</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {users.map((user) => (
+                              <tr key={user.user_id} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 text-sm text-gray-900">{user.user_id}</td>
+                                <td className="px-4 py-3 text-sm font-medium text-gray-900">{user.nama}</td>
+                                <td className="px-4 py-3 text-sm text-gray-600">{user.email}</td>
+                                <td className="px-4 py-3 text-sm text-gray-600">{user.username}</td>
+                                <td className="px-4 py-3 text-sm text-gray-600">{user.phone || '-'}</td>
+                                <td className="px-4 py-3">
+                                  <Badge 
+                                    variant={user.role === 'superadmin' ? 'default' : 'secondary'}
+                                    className={user.role === 'superadmin' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}
+                                  >
+                                    {user.role}
+                                  </Badge>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <Badge variant={user.status === 'aktif' ? 'default' : 'secondary'}>
+                                    {user.status}
+                                  </Badge>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-500">
+                                  {new Date(user.created_at).toLocaleDateString('id-ID', { 
+                                    day: '2-digit', 
+                                    month: 'short', 
+                                    year: 'numeric' 
+                                  })}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <Button variant="ghost" size="sm" disabled>
+                                      <Eye className="w-4 h-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" disabled>
+                                      <Edit className="w-4 h-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" disabled>
+                                      <Trash2 className="w-4 h-4 text-red-500" />
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination */}
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm text-gray-600">
+                          Halaman {currentPage} dari {totalPages}
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={currentPage === 1}
+                            onClick={() => setCurrentPage(currentPage - 1)}
+                          >
+                            Previous
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={currentPage === totalPages}
+                            onClick={() => setCurrentPage(currentPage + 1)}
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>

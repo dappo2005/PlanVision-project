@@ -57,59 +57,72 @@ export default function Navbar({
     const loadUserRole = async () => {
       try {
         const stored = localStorage.getItem('user');
+        console.log('[Navbar] Loading role - localStorage:', stored ? 'exists' : 'empty');
+        
         if (stored) {
           const user = JSON.parse(stored);
           const userEmail = user.email;
+          console.log('[Navbar] User email:', userEmail, 'Role in localStorage:', user.role);
           
           // ALWAYS sync role from backend to ensure it's up-to-date
           if (userEmail) {
             try {
               const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
-              console.log('[Navbar] Syncing role from:', `${API_URL}/api/user/role?email=${encodeURIComponent(userEmail)}`);
+              console.log('[Navbar] Fetching role from backend for:', userEmail);
               const response = await fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(userEmail)}`);
-              console.log('[Navbar] Role sync response status:', response.status);
+              console.log('[Navbar] Backend response status:', response.status);
+              
               if (response.ok) {
                 const data = await response.json();
-                console.log('[Navbar] Role sync response data:', data);
+                console.log('[Navbar] Backend returned role:', data.role);
+                
                 if (data.role) {
-                  // ALWAYS update localStorage with role from backend (force sync)
+                  // Update both localStorage and state with backend role
                   const updatedUser = { ...user, role: data.role };
                   localStorage.setItem('user', JSON.stringify(updatedUser));
-                  user.role = data.role;
-                  console.log('[Navbar] Role FORCE SYNC from backend:', data.role, '(was:', user.role || 'undefined', ')');
-                  // Update state immediately after sync
                   setUserRole(data.role);
+                  console.log('✅ [Navbar] Role set to:', data.role, '| isSuperadmin:', data.role === 'superadmin');
+                  return;
                 }
               } else {
-                const errorData = await response.json().catch(() => ({}));
-                console.error('[Navbar] Role sync failed:', response.status, errorData);
+                console.error('❌ [Navbar] Backend fetch failed');
               }
             } catch (error) {
-              console.error('[Navbar] Could not sync role from backend:', error);
+              console.error('❌ [Navbar] Error fetching from backend:', error);
             }
           }
           
-          const finalRole = user.role || 'user';
-          setUserRole(finalRole);
-          console.log('[Navbar] Final user role set to:', finalRole);
-          console.log('[Navbar] Is superadmin?', finalRole === 'superadmin');
+          // Fallback: use role from localStorage
+          const fallbackRole = user.role || 'user';
+          setUserRole(fallbackRole);
+          console.log('⚠️ [Navbar] Using fallback role:', fallbackRole, '| isSuperadmin:', fallbackRole === 'superadmin');
         } else {
-          console.log('[Navbar] No user in localStorage');
+          console.log('❌ [Navbar] No user in localStorage');
           setUserRole('user');
         }
       } catch (error) {
-        console.error('[Navbar] Error loading user role:', error);
+        console.error('❌ [Navbar] Error:', error);
         setUserRole('user');
       }
     };
     
+    // Load on mount
     loadUserRole();
-  }, []);
+    
+    // Re-load when variant changes (landing -> authenticated)
+    // This ensures role is checked after login
+    if (variant === 'authenticated') {
+      loadUserRole();
+    }
+  }, [variant]);
 
   // Strict check: only 'superadmin' is admin, everything else is user/petani
   const isSuperadmin = userRole === 'superadmin';
   
+  console.log('=== NAVBAR DEBUG ===');
   console.log('[Navbar] Current state - userRole:', userRole, 'isSuperadmin:', isSuperadmin);
+  console.log('[Navbar] User dari localStorage:', localStorage.getItem('user'));
+  console.log('[Navbar] variant:', variant);
 
   const navItems =
     variant === "authenticated"
@@ -153,7 +166,10 @@ export default function Navbar({
           ...(isSuperadmin ? [{
             label: "Admin Panel",
             icon: <BarChart3 className="w-4 h-4" />,
-            onClick: () => navigate('/admin'),
+            onClick: () => {
+              console.log('[Navbar] Admin Panel clicked! Navigating to /admin');
+              navigate('/admin');
+            },
             adminOnly: true,
           }] : []),
         ]
@@ -163,6 +179,14 @@ export default function Navbar({
           { label: "Fitur", href: "#fitur" },
           { label: "Tim", href: "#tim" },
         ];
+  
+  // Debug log untuk cek navItems
+  console.log('[Navbar] navItems count:', navItems.length);
+  if (isSuperadmin) {
+    console.log('[Navbar] Admin Panel should be included in menu!');
+    const adminItem = navItems.find((item: any) => item.label === 'Admin Panel');
+    console.log('[Navbar] Admin Panel item found:', !!adminItem);
+  }
 
   return (
     <header className="sticky top-0 z-50 bg-white/98 backdrop-blur-md border-b border-gray-200/80 shadow-sm">
@@ -218,8 +242,18 @@ export default function Navbar({
           <div className="hidden lg:flex items-center gap-2 flex-shrink-0 ml-auto">
             {variant === "authenticated" ? (
               <>
-                {/* Role Badge - Rapi dengan text */}
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border flex-shrink-0">
+                {/* Role Badge - Rapi dengan text + Debug */}
+                <div 
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border flex-shrink-0 cursor-pointer hover:bg-gray-50"
+                  onClick={() => {
+                    console.log('=== DEBUG ROLE ===');
+                    console.log('userRole state:', userRole);
+                    console.log('isSuperadmin:', isSuperadmin);
+                    console.log('localStorage user:', localStorage.getItem('user'));
+                    alert(`Role: ${userRole}\nIsSuperadmin: ${isSuperadmin}\nCheck console for details`);
+                  }}
+                  title="Click untuk debug role"
+                >
                   {isSuperadmin ? (
                     <>
                       <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
@@ -228,7 +262,7 @@ export default function Navbar({
                   ) : (
                     <>
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-green-700">Petani</span>
+                      <span className="text-green-700">Petani ({userRole})</span>
                     </>
                   )}
                 </div>

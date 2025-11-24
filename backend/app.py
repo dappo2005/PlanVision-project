@@ -1222,6 +1222,234 @@ def add_feedback_response(feedback_id):
         if conn and conn.is_connected(): conn.close()
 
 
+# --- API GET USER ROLE (for navbar sync) ---
+@app.route('/api/user/role', methods=['GET'])
+def get_user_role():
+    """
+    API untuk mendapatkan role user berdasarkan email
+    Query params: ?email=user@example.com
+    Returns: {email, role}
+    """
+    conn = None
+    cursor = None
+    
+    try:
+        email = request.args.get('email')
+        if not email:
+            return jsonify({"error": "Email parameter required"}), 400
+        
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT email, role FROM User WHERE email = %s", (email,))
+        user = cursor.fetchone()
+        
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        
+        user_data: dict = user  # type: ignore
+        return jsonify({
+            "email": user_data['email'],
+            "role": user_data['role']
+        }), 200
+        
+    except Exception as e:
+        print(f"[Get User Role] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+# ===================================================================
+# ADMIN USER MANAGEMENT API
+# ===================================================================
+
+@app.route('/api/admin/users/stats', methods=['GET'])
+def get_users_stats():
+    """
+    API untuk mendapatkan statistik user
+    Returns: {total, active, by_role}
+    """
+    conn = None
+    cursor = None
+    
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        
+        cursor = conn.cursor(dictionary=True)
+        
+        # Total users
+        cursor.execute("SELECT COUNT(*) as total FROM User")
+        total_result = cursor.fetchone()
+        total: int = total_result['total'] if total_result else 0  # type: ignore
+        
+        # Active users (status_akun = 'aktif')
+        cursor.execute("SELECT COUNT(*) as active FROM User WHERE status_akun = 'aktif'")
+        active_result = cursor.fetchone()
+        active: int = active_result['active'] if active_result else 0  # type: ignore
+        
+        # By role
+        cursor.execute("SELECT role, COUNT(*) as count FROM User GROUP BY role")
+        by_role = {row['role']: row['count'] for row in cursor.fetchall()}  # type: ignore
+        
+        return jsonify({
+            "total": total,
+            "active": active,
+            "by_role": by_role
+        }), 200
+        
+    except Exception as e:
+        print(f"[Users Stats] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+@app.route('/api/admin/users', methods=['GET'])
+def get_all_users():
+    """
+    API untuk mendapatkan semua user dengan pagination dan filter
+    Query params: ?page=1&limit=20&search=keyword&role=user&status=aktif
+    Returns: {total, page, limit, users[]}
+    """
+    conn = None
+    cursor = None
+    
+    try:
+        # Get query parameters
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 20))
+        search = request.args.get('search', '').strip()
+        role_filter = request.args.get('role', None)
+        status_filter = request.args.get('status', None)
+        
+        offset = (page - 1) * limit
+        
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        
+        cursor = conn.cursor(dictionary=True)
+        
+        # Build query with filters
+        where_clauses = []
+        params = []
+        
+        if search:
+            where_clauses.append("(nama LIKE %s OR email LIKE %s OR username LIKE %s)")
+            search_pattern = f"%{search}%"
+            params.extend([search_pattern, search_pattern, search_pattern])
+        
+        if role_filter:
+            where_clauses.append("role = %s")
+            params.append(role_filter)
+        
+        if status_filter:
+            where_clauses.append("status_akun = %s")
+            params.append(status_filter)
+        
+        where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+        
+        # Count total
+        count_query = f"SELECT COUNT(*) as total FROM User {where_sql}"
+        cursor.execute(count_query, params)
+        total_result = cursor.fetchone()
+        total: int = total_result['total'] if total_result else 0  # type: ignore
+        
+        # Get users
+        query = f"""
+            SELECT 
+                user_id, nama, email, username, phone, role, status_akun, 
+                tanggal_daftar as created_at
+            FROM User
+            {where_sql}
+            ORDER BY tanggal_daftar DESC
+            LIMIT %s OFFSET %s
+        """
+        
+        cursor.execute(query, params + [limit, offset])
+        users = cursor.fetchall()
+        
+        # Format response
+        result = []
+        for user in users:
+            user_data: dict = user  # type: ignore
+            result.append({
+                "user_id": user_data['user_id'],
+                "nama": user_data['nama'],
+                "email": user_data['email'],
+                "username": user_data['username'],
+                "phone": user_data['phone'],
+                "role": user_data['role'],
+                "status": user_data['status_akun'],
+                "created_at": user_data['created_at'].isoformat() if user_data['created_at'] else None
+            })
+        
+        return jsonify({
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total + limit - 1) // limit,
+            "users": result
+        }), 200
+        
+    except Exception as e:
+        print(f"[Get Users] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+@app.route('/api/admin/detections/stats', methods=['GET'])
+def get_detections_stats():
+    """
+    API untuk mendapatkan statistik deteksi
+    Returns: {total, by_disease, recent_count}
+    """
+    conn = None
+    cursor = None
+    
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        
+        cursor = conn.cursor(dictionary=True)
+        
+        # Total detections
+        cursor.execute("SELECT COUNT(*) as total FROM Diagnosa")
+        total_result = cursor.fetchone()
+        total: int = total_result['total'] if total_result else 0  # type: ignore
+        
+        # Recent count (last 7 days)
+        cursor.execute("""
+            SELECT COUNT(*) as recent_count
+            FROM Diagnosa
+            WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        """)
+        recent_result = cursor.fetchone()
+        recent_count: int = recent_result['recent_count'] if recent_result else 0  # type: ignore
+        
+        return jsonify({
+            "total": total,
+            "recent_count": recent_count
+        }), 200
+        
+    except Exception as e:
+        print(f"[Detections Stats] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
 # --- Menjalankan Aplikasi ---
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
