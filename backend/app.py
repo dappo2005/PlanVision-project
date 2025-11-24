@@ -3,6 +3,8 @@ from werkzeug.utils import secure_filename
 import mysql.connector
 import bcrypt
 import os
+import tensorflow as tf
+from tensorflow.keras.models import load_model as keras_load_model
 import numpy as np
 import time
 from PIL import Image
@@ -13,17 +15,6 @@ import json
 import hashlib
 import secrets
 from disease_info import get_disease_info
-
-# Import TensorFlow dengan error handling
-try:
-    import tensorflow as tf
-    from tensorflow.keras.models import load_model as keras_load_model
-    TENSORFLOW_AVAILABLE = True
-except ImportError:
-    print("⚠️  WARNING: TensorFlow tidak terinstall. Fitur deteksi penyakit tidak akan berfungsi.")
-    print("   Endpoint /api/dataset/* masih bisa digunakan untuk simulasi.")
-    TENSORFLOW_AVAILABLE = False
-    keras_load_model = None
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS untuk semua routes
@@ -56,9 +47,6 @@ def detect_model_type(model):
 def load_model_at_startup():
     """Load Keras H5 model from disk and detect architecture"""
     global MODEL, MODEL_TYPE
-    if not TENSORFLOW_AVAILABLE:
-        print("⚠️  TensorFlow tidak tersedia, model tidak akan dimuat")
-        return
     try:
         if os.path.exists(MODEL_PATH):
             print(f"Loading model from {MODEL_PATH}")
@@ -80,7 +68,7 @@ load_model_at_startup()
 DB_HOST = os.getenv('DB_HOST', 'localhost')
 DB_PORT = os.getenv('DB_PORT', '3306')
 DB_USER = os.getenv('DB_USER', 'root')
-DB_PASSWORD = os.getenv('DB_PASSWORD', '')  # Password kosong (default untuk XAMPP/local MySQL)
+DB_PASSWORD = os.getenv('DB_PASSWORD', 'D@ffa_2005')
 DB_NAME = os.getenv('DB_NAME', 'plantvision_db')
 
 print(f"[Backend] Connecting to MySQL DB='{DB_NAME}' on {DB_HOST}:{DB_PORT} as {DB_USER}")
@@ -250,11 +238,6 @@ def login_user():
                 # Password cocok!
                 user_id_val = user_data.get('user_id') or user_data.get('id')
                 status_val = user_data.get('status_akun') or user_data.get('status') or 'aktif'
-                user_role = user_data.get('role') or 'user'
-                
-                # Debug logging
-                print(f"[Login] User: {user_data.get('email')}, Role from DB: {user_role}")
-                
                 return jsonify({
                     "message": f"Login sukses. Selamat datang, {user_data['nama']}!",
                     "user_id": user_id_val,
@@ -262,7 +245,7 @@ def login_user():
                     "email": user_data['email'],
                     "username": user_data['username'],
                     "phone": user_data['phone'],
-                    "role": user_role,  # Pastikan role selalu ada
+                    "role": user_data['role'],
                     "status": status_val
                 }), 200
             else:
@@ -285,52 +268,13 @@ def login_user():
 
 
 
-# --- API GET USER ROLE (for role sync) ---
-@app.route('/api/user/role', methods=['GET'])
-def get_user_role():
-    """
-    API untuk mendapatkan role user berdasarkan email.
-    Digunakan untuk sync role di frontend.
-    """
-    try:
-        email = request.args.get('email')
-        if not email:
-            return jsonify({"error": "Email parameter required"}), 400
-        
-        conn = get_db_connection()
-        if conn is None:
-            return jsonify({"error": "Koneksi database gagal"}), 500
-        
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT role, user_id, nama FROM User WHERE email = %s", (email,))
-        user = cursor.fetchone()
-        
-        cursor.close()
-        conn.close()
-        
-        if user:
-            print(f"[API /api/user/role] Email: {email}, Role: {user['role']}")
-            return jsonify({
-                "role": user['role'],
-                "user_id": user['user_id'],
-                "nama": user['nama']
-            }), 200
-        else:
-            return jsonify({"error": "User not found"}), 404
-            
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
 # --- API PREDIKSI (F-08) ---
 # Disease info sudah diimport dari disease_info.py (lebih lengkap)
 
 @app.route('/api/predict', methods=['POST'])
 def predict_disease():
-    if not TENSORFLOW_AVAILABLE:
-        return jsonify({"error": "TensorFlow tidak terinstall. Install dengan: pip install tensorflow"}), 500
     if MODEL is None:
-        return jsonify({"error": "Model AI belum siap. Pastikan model ada di folder models/"}), 500
+        return jsonify({"error": "Model AI belum siap"}), 500
 
     conn = None
     try:
@@ -502,119 +446,6 @@ def serve_upload(filename):
         return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
     except FileNotFoundError:
         return jsonify({"error": "Image not found"}), 404
-
-
-# --- API SERVE DATASET IMAGES (untuk simulasi) ---
-import random
-import glob
-
-DATASET_BASE = os.path.join(os.path.dirname(__file__), '..', 'data', 'plantvision_dataset')
-
-def get_random_image_from_dataset(folder='test'):
-    """
-    Ambil gambar random dari dataset untuk simulasi
-    folder: 'test', 'train', atau 'val'
-    """
-    try:
-        dataset_path = os.path.join(DATASET_BASE, folder)
-        if not os.path.exists(dataset_path):
-            return None
-        
-        # Ambil semua subfolder (Black spot, Canker, Greening, Healthy, Melanose)
-        subfolders = [f for f in os.listdir(dataset_path) 
-                     if os.path.isdir(os.path.join(dataset_path, f))]
-        
-        if not subfolders:
-            return None
-        
-        # Pilih subfolder random
-        random_subfolder = random.choice(subfolders)
-        subfolder_path = os.path.join(dataset_path, random_subfolder)
-        
-        # Ambil semua gambar di subfolder
-        image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']
-        images = []
-        for ext in image_extensions:
-            images.extend(glob.glob(os.path.join(subfolder_path, ext)))
-        
-        if not images:
-            return None
-        
-        # Pilih gambar random
-        return random.choice(images)
-    except Exception as e:
-        print(f"Error getting random image: {e}")
-        return None
-
-@app.route('/api/dataset/random-stream', methods=['GET'])
-def get_random_stream_image():
-    """
-    API untuk mendapatkan gambar random dari dataset untuk simulasi stream
-    Returns: Image file
-    """
-    try:
-        # Ambil dari folder test (lebih ringan untuk stream)
-        image_path = get_random_image_from_dataset('test')
-        
-        if image_path is None:
-            # Debug: cek apakah path dataset ada
-            print(f"[DEBUG] Dataset path: {DATASET_BASE}")
-            print(f"[DEBUG] Dataset exists: {os.path.exists(DATASET_BASE)}")
-            if os.path.exists(DATASET_BASE):
-                test_path = os.path.join(DATASET_BASE, 'test')
-                print(f"[DEBUG] Test folder exists: {os.path.exists(test_path)}")
-                if os.path.exists(test_path):
-                    subfolders = os.listdir(test_path)
-                    print(f"[DEBUG] Subfolders in test: {subfolders}")
-            return jsonify({
-                "error": "Dataset tidak ditemukan atau kosong",
-                "debug": {
-                    "dataset_path": DATASET_BASE,
-                    "exists": os.path.exists(DATASET_BASE)
-                }
-            }), 404
-        
-        # Return image file dengan cache control untuk performa
-        directory = os.path.dirname(image_path)
-        filename = os.path.basename(image_path)
-        print(f"[DEBUG] Serving image: {filename} from {directory}")
-        
-        response = send_from_directory(directory, filename)
-        # Tambahkan header untuk cache control (opsional, untuk performa)
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
-        return response
-    except Exception as e:
-        print(f"Error serving random stream image: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/dataset/random-capture', methods=['GET'])
-def get_random_capture_image():
-    """
-    API untuk mendapatkan gambar random resolusi tinggi dari dataset untuk simulasi capture
-    Returns: Image file
-    """
-    try:
-        # Ambil dari folder train (biasanya resolusi lebih tinggi)
-        image_path = get_random_image_from_dataset('train')
-        
-        if image_path is None:
-            # Fallback ke test jika train tidak ada
-            image_path = get_random_image_from_dataset('test')
-        
-        if image_path is None:
-            return jsonify({"error": "Dataset tidak ditemukan"}), 404
-        
-        # Return image file
-        directory = os.path.dirname(image_path)
-        filename = os.path.basename(image_path)
-        return send_from_directory(directory, filename)
-    except Exception as e:
-        print(f"Error serving random capture image: {e}")
-        return jsonify({"error": str(e)}), 500
 
 
 # ===================================================================
@@ -1036,122 +867,6 @@ def verify_superadmin(user_id):
     except Exception as e:
         print(f"[Verify Admin] Error: {e}")
         return False
-    finally:
-        if cursor: cursor.close()
-        if conn and conn.is_connected(): conn.close()
-
-
-# --- API GET PUBLIC FEEDBACKS (Public - untuk riwayat ulasan) ---
-@app.route('/api/feedback/public', methods=['GET'])
-def get_public_feedbacks():
-    """
-    API untuk menampilkan feedback publik (riwayat ulasan seperti Google Reviews)
-    Hanya menampilkan feedback yang sudah resolved atau dengan status tertentu
-    Query params: ?limit=20&page=1&sort=date_desc
-    Returns: Paginated list of public feedbacks (anonymized)
-    """
-    conn = None
-    cursor = None
-    
-    try:
-        sort_by = request.args.get('sort', 'date_desc')
-        page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 20))
-        
-        offset = (page - 1) * limit
-        
-        conn = get_db_connection()
-        if conn is None:
-            # Jika database tidak tersedia, return empty array (tidak error)
-            print("[Public Feedbacks] Database tidak tersedia, mengembalikan array kosong")
-            return jsonify({
-                "total": 0,
-                "page": page,
-                "limit": limit,
-                "total_pages": 0,
-                "feedbacks": [],
-                "message": "Database tidak tersedia. Pastikan MySQL berjalan."
-            }), 200
-        
-        cursor = conn.cursor(dictionary=True)
-        
-        # Ambil feedback yang sudah resolved ATAU feedback dengan rating >= 3 (termasuk pending)
-        # Ini memastikan feedback baru langsung muncul di riwayat ulasan
-        where_sql = "WHERE (status = 'resolved' OR rating >= 3) AND message IS NOT NULL AND message != ''"
-        
-        # Determine sort order
-        if sort_by == 'date_desc':
-            order_sql = "ORDER BY created_at DESC"
-        elif sort_by == 'date_asc':
-            order_sql = "ORDER BY created_at ASC"
-        elif sort_by == 'rating_desc':
-            order_sql = "ORDER BY rating DESC, created_at DESC"
-        elif sort_by == 'rating_asc':
-            order_sql = "ORDER BY rating ASC, created_at DESC"
-        else:
-            order_sql = "ORDER BY created_at DESC"
-        
-        # Count total
-        count_query = f"SELECT COUNT(*) as total FROM Feedback {where_sql}"
-        cursor.execute(count_query)
-        total_result = cursor.fetchone()
-        total: int = total_result['total'] if total_result else 0  # type: ignore
-        
-        # Get feedbacks (optimized query dengan index)
-        query = f"""
-            SELECT 
-                feedback_id, nama, rating, category, message, created_at
-            FROM Feedback
-            {where_sql}
-            {order_sql}
-            LIMIT %s OFFSET %s
-        """
-        
-        cursor.execute(query, [limit, offset])
-        feedbacks = cursor.fetchall()
-        
-        # Log untuk debugging (opsional)
-        print(f"[Public Feedbacks] Loaded {len(feedbacks)} feedbacks in {limit}ms")
-        
-        result = []
-        for fb in feedbacks:
-            fb_data: dict = fb  # type: ignore
-            # Anonymize nama (hanya tampilkan inisial atau nama depan)
-            nama = fb_data['nama'] or 'Anonymous'
-            if ' ' in nama:
-                parts = nama.split(' ')
-                anonymized_name = f"{parts[0][0]}. {parts[-1][0]}." if len(parts) > 1 else parts[0]
-            else:
-                anonymized_name = nama[0] + '.' if len(nama) > 1 else nama
-            
-            result.append({
-                "feedback_id": fb_data['feedback_id'],
-                "nama": anonymized_name,  # Anonymized
-                "rating": fb_data['rating'],
-                "category": fb_data['category'],
-                "message": fb_data['message'],
-                "created_at": fb_data['created_at'].isoformat() if fb_data['created_at'] else None
-            })
-        
-        return jsonify({
-            "total": total,
-            "page": page,
-            "limit": limit,
-            "total_pages": (total + limit - 1) // limit,
-            "feedbacks": result
-        }), 200
-        
-    except Exception as e:
-        print(f"[Public Feedbacks] Error: {e}")
-        # Return empty array instead of error untuk user experience yang lebih baik
-        return jsonify({
-            "total": 0,
-            "page": page,
-            "limit": limit,
-            "total_pages": 0,
-            "feedbacks": [],
-            "error": str(e)
-        }), 200  # Return 200 dengan empty array, bukan 500
     finally:
         if cursor: cursor.close()
         if conn and conn.is_connected(): conn.close()
