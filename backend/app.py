@@ -299,6 +299,7 @@ def predict_disease():
         return jsonify({"error": "Model AI belum siap"}), 500
 
     conn = None
+    cursor = None
     try:
         if 'image' not in request.files:
             return jsonify({"error": "Tidak ada gambar"}), 400
@@ -354,30 +355,68 @@ def predict_disease():
         for i, prob in enumerate(predictions):
             print(f"  - {CLASS_NAMES[i]}: {prob*100:.2f}%")
 
-        # 4. Simpan ke Database
-        history_id = None
-        if user_id:
-            conn = get_db_connection()
-            if conn:
-                cursor = conn.cursor()
-                sql_daun = "INSERT INTO DaunJeruk (user_id, citra) VALUES (%s, %s)"
-                cursor.execute(sql_daun, (user_id, filename))
-                daun_id = cursor.lastrowid
-                
-                hasil_text = f"{top_class} ({top_prob*100:.1f}%)"
-                sql_diag = "INSERT INTO Diagnosa (daun_id, hasil_deteksi) VALUES (%s, %s)"
-                cursor.execute(sql_diag, (daun_id, hasil_text))
-                
-                conn.commit()
-                history_id = cursor.lastrowid
-
-        # 5. Response
+        # 4. Get disease info
         try:
             disease_info = get_disease_info(top_class)
         except Exception as e:
             print(f"Error getting disease info: {e}")
             disease_info = {}
-        
+
+        # 5. Simpan ke Database (REFACTORED: Prioritas DetectionHistory)
+        history_id = None
+        if user_id:
+            conn = get_db_connection()
+            if conn:
+                cursor = conn.cursor()
+                
+                # NEW: Simpan ke DetectionHistory dengan data lengkap
+                try:
+                    # Tentukan severity berdasarkan confidence
+                    if top_prob >= 0.9:
+                        severity = "tinggi"
+                    elif top_prob >= 0.7:
+                        severity = "sedang"
+                    else:
+                        severity = "rendah"
+                    
+                    # Ekstrak data dari disease_info
+                    description = disease_info.get('description', '')
+                    symptoms = json.dumps(disease_info.get('symptoms', []))
+                    treatment = json.dumps(disease_info.get('treatment', []))
+                    prevention = json.dumps(disease_info.get('prevention', []))
+                    
+                    sql_history = """
+                        INSERT INTO DetectionHistory 
+                        (user_id, image_path, disease_name, confidence, severity, 
+                         description, symptoms, treatment, prevention)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    cursor.execute(sql_history, (
+                        user_id, filename, top_class, top_prob * 100, severity,
+                        description, symptoms, treatment, prevention
+                    ))
+                    history_id = cursor.lastrowid
+                    print(f"[DetectionHistory] Saved ID: {history_id}")
+                    
+                except Exception as e:
+                    print(f"[DetectionHistory] Error: {e}")
+                    # FALLBACK: Jika DetectionHistory gagal, simpan ke DaunJeruk+Diagnosa
+                    try:
+                        sql_daun = "INSERT INTO DaunJeruk (user_id, citra) VALUES (%s, %s)"
+                        cursor.execute(sql_daun, (user_id, filename))
+                        daun_id = cursor.lastrowid
+                        
+                        hasil_text = f"{top_class} ({top_prob*100:.1f}%)"
+                        sql_diag = "INSERT INTO Diagnosa (daun_id, hasil_deteksi) VALUES (%s, %s)"
+                        cursor.execute(sql_diag, (daun_id, hasil_text))
+                        
+                        print(f"[Fallback] Saved to DaunJeruk+Diagnosa")
+                    except Exception as fallback_err:
+                        print(f"[Fallback] Error: {fallback_err}")
+                
+                conn.commit()
+                
+        # 6. Response
         return jsonify({
             "class": top_class,
             "confidence": f"{top_prob*100:.1f}%",
@@ -391,6 +430,7 @@ def predict_disease():
         print(f"Error Predict: {e}")
         return jsonify({"error": str(e)}), 500
     finally:
+        if cursor: cursor.close()
         if conn: conn.close()
 
 
@@ -1239,6 +1279,80 @@ def add_feedback_response(feedback_id):
     except Exception as e:
         print(f"[Add Response] Error: {e}")
         return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+# --- API GET PUBLIC FEEDBACKS (untuk display di halaman feedback) ---
+@app.route('/api/feedback/public', methods=['GET'])
+def get_public_feedbacks():
+    """
+    API untuk mendapatkan feedback publik yang sudah resolved (untuk display di halaman feedback)
+    Query params: ?limit=10&sort=date_desc
+    Returns: List of public feedbacks
+    """
+    conn = None
+    cursor = None
+    
+    try:
+        limit = int(request.args.get('limit', 10))
+        sort_by = request.args.get('sort', 'date_desc')
+        
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        
+        cursor = conn.cursor(dictionary=True)
+        
+        # Sort order
+        if sort_by == 'date_desc':
+            order_sql = "ORDER BY created_at DESC"
+        elif sort_by == 'date_asc':
+            order_sql = "ORDER BY created_at ASC"
+        elif sort_by == 'rating_desc':
+            order_sql = "ORDER BY rating DESC, created_at DESC"
+        else:
+            order_sql = "ORDER BY created_at DESC"
+        
+        # Query feedbacks yang resolved atau rating tinggi (untuk display publik)
+        query = f"""
+            SELECT 
+                feedback_id, nama, rating, category, message, created_at
+            FROM Feedback
+            WHERE rating >= 4
+            {order_sql}
+            LIMIT %s
+        """
+        
+        cursor.execute(query, (limit,))
+        feedbacks = cursor.fetchall()
+        
+        result = []
+        for fb in feedbacks:
+            fb_data: dict = fb  # type: ignore
+            result.append({
+                "feedback_id": fb_data['feedback_id'],
+                "nama": fb_data['nama'],
+                "rating": fb_data['rating'],
+                "category": fb_data['category'],
+                "message": fb_data['message'],
+                "created_at": fb_data['created_at'].isoformat() if fb_data['created_at'] else None
+            })
+        
+        return jsonify({
+            "total": len(result),
+            "feedbacks": result
+        }), 200
+        
+    except Exception as e:
+        print(f"[Public Feedbacks] Error: {e}")
+        # Return empty array instead of error (graceful degradation)
+        return jsonify({
+            "total": 0,
+            "feedbacks": [],
+            "error": str(e)
+        }), 200
     finally:
         if cursor: cursor.close()
         if conn and conn.is_connected(): conn.close()
