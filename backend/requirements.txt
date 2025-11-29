@@ -6,3 +6,6 @@ pillow
 scipy
 tensorflow==2.15.0
 werkzeug
+python-dotenv
+google-generativeai
+protobuf<5,>=3.20.3

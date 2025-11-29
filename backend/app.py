@@ -15,10 +15,15 @@ import json
 import hashlib
 import secrets
 from disease_info import get_disease_info
+from dotenv import load_dotenv
+import google.generativeai as genai
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS untuk semua routes
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
+
+# Load environment variables
+load_dotenv()
 
 # Upload folder configuration
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
@@ -59,8 +64,25 @@ def load_model_at_startup():
     except Exception as e:
         print(f"Error loading model: {e}")
 
-# Load model saat Flask startup
-load_model_at_startup()
+# Load model saat Flask startup (bisa dilewati untuk testing cepat)
+if os.getenv('SKIP_MODEL_LOAD') == '1':
+    print("[Model] SKIP_MODEL_LOAD=1, melewati load model saat startup")
+else:
+    load_model_at_startup()
+
+# --- KONFIGURASI GEMINI (Google AI Studio) ---
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+GENAI_CONFIGURED = False
+PLANT_CHAT_MODEL = None
+try:
+    if GEMINI_API_KEY:
+        genai.configure(api_key=GEMINI_API_KEY)
+        GENAI_CONFIGURED = True
+        print("[Gemini] API key berhasil dikonfigurasi")
+    else:
+        print("[Gemini] Peringatan: GEMINI_API_KEY tidak ditemukan di environment/.env")
+except Exception as e:
+    print(f"[Gemini] Gagal inisialisasi: {e}")
 
 # --- KONFIGURASI KONEKSI DATABASE ---
 # Bisa dikonfigurasi melalui environment variables agar konsisten dengan DB Anda
@@ -1448,6 +1470,91 @@ def get_detections_stats():
     finally:
         if cursor: cursor.close()
         if conn and conn.is_connected(): conn.close()
+
+
+# --- API CHAT AI (Gemini) ---
+# --- KONFIGURASI GOOGLE GEMINI AI ---
+# GANTI DENGAN API KEY ANDA DARI GOOGLE AI STUDIO
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'AIzaSyAqUNRvT9-I72J46vvyPMfvxGhGULLkMOs')
+
+genai.configure(api_key=GEMINI_API_KEY)
+
+# Konfigurasi model (Instruksi agar AI berperan sebagai ahli pertanian)
+generation_config = {
+  "temperature": 0.7,
+  "top_p": 0.95,
+  "top_k": 40,
+  "max_output_tokens": 1024,
+}
+
+# System Instruction: Memberi karakter pada AI agar fokus ke Jeruk
+system_instruction = """
+Kamu adalah PlantVision AI, asisten ahli pertanian yang spesifik membantu petani jeruk.
+Tugasmu adalah menjawab pertanyaan seputar:
+1. Penyakit pada tanaman jeruk (Gejala, Penanganan, Pencegahan).
+2. Cara budidaya jeruk (Pemupukan, Irigasi, Pemangkasan).
+3. Hama pada tanaman jeruk.
+
+Gunakan bahasa yang sopan, jelas, dan mudah dimengerti oleh petani Indonesia.
+Jika ditanya di luar topik pertanian/jeruk, jawab dengan sopan bahwa kamu hanya fokus pada pertanian jeruk.
+Berikan jawaban yang praktis dan bisa langsung diterapkan.
+"""
+
+model = genai.GenerativeModel(
+    model_name="gemini-pro", # Model yang cepat dan hemat
+    generation_config=generation_config, 
+    # system_instruction=system_instruction
+)
+
+# --- API CHAT AI (Integrasi Google Gemini) ---
+# --- UPDATE ENDPOINT CHAT (Lebih Stabil) ---
+@app.route('/api/chat', methods=['POST'])
+def chat_ai():
+    try:
+        data = request.json
+        user_message = data.get('message')
+        
+        if not user_message:
+            return jsonify({"error": "Pesan tidak boleh kosong"}), 400
+
+        if not GEMINI_API_KEY:
+            return jsonify({"error": "Chat AI belum dikonfigurasi. Set GEMINI_API_KEY di .env"}), 500
+
+        # Langsung pakai REST API (lebih stabil dari SDK)
+        import requests as req
+        
+        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+        
+        system_prompt = (
+            "Anda adalah PlantVision AI, asisten agronomi untuk pertanian jeruk. "
+            "Jawab dalam Bahasa Indonesia dengan singkat, praktis, dan sopan. "
+            "Fokus pada penyakit daun jeruk: Black spot, Canker, Greening, Melanose, Healthy.\n\n"
+            f"Pertanyaan: {user_message}"
+        )
+        
+        payload = {
+            "contents": [{
+                "parts": [{"text": system_prompt}]
+            }]
+        }
+        
+        resp = req.post(api_url, json=payload, timeout=30)
+        resp.raise_for_status()
+        
+        result = resp.json()
+        reply_text = result['candidates'][0]['content']['parts'][0]['text']
+        
+        return jsonify({
+            "reply": reply_text,
+            "timestamp": datetime.now().isoformat()
+        }), 200
+
+    except Exception as e:
+        print(f"[Chat AI Error]: {e}")
+        return jsonify({
+            "reply": "Maaf, AI sedang sibuk. Coba lagi nanti.",
+            "error": str(e)
+        }), 500
 
 
 # --- Menjalankan Aplikasi ---
