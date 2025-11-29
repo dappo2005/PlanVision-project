@@ -3694,3 +3694,30 @@ h1, h2, h3, h4, h5, h6 {
     transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0) scale3d(var(--tw-exit-scale, 1), var(--tw-exit-scale, 1), var(--tw-exit-scale, 1)) rotate(var(--tw-exit-rotate, 0));
   }
 }
+
+/* Sidebar Collapsible Styles */
+:root {
+  --sidebar-width: 80px;
+}
+
+@media (min-width: 1024px) {
+  /* Sidebar collapsible dengan hover */
+  aside.sidebar-collapsible {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    height: 100vh !important;
+    z-index: 50 !important;
+    overflow: hidden;
+  }
+  
+  /* Main content dengan margin yang menyesuaikan sidebar width */
+  main.sidebar-content {
+    transition: margin-left 0.2s ease !important;
+  }
+  
+  /* Pastikan text tidak terlihat saat collapsed */
+  aside.sidebar-collapsible span {
+    transition: opacity 0.2s ease, width 0.2s ease;
+  }
+}

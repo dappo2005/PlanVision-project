@@ -333,13 +333,13 @@ export default function AdminFeedbackDashboard({ onLogout, onNavigateToDashboard
         <Card className="mb-6">
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <Label>Status</Label>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Status</Label>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue />
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Semua Status" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-50">
                     <SelectItem value="all">Semua Status</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="in_review">In Review</SelectItem>
@@ -348,13 +348,13 @@ export default function AdminFeedbackDashboard({ onLogout, onNavigateToDashboard
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Kategori</Label>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Kategori</Label>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger>
-                    <SelectValue />
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Semua Kategori" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-50">
                     <SelectItem value="all">Semua Kategori</SelectItem>
                     <SelectItem value="umum">Umum</SelectItem>
                     <SelectItem value="fitur">Fitur</SelectItem>
@@ -364,13 +364,13 @@ export default function AdminFeedbackDashboard({ onLogout, onNavigateToDashboard
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Sort By</Label>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Sort By</Label>
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger>
-                    <SelectValue />
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Terbaru" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-50">
                     <SelectItem value="date_desc">Terbaru</SelectItem>
                     <SelectItem value="date_asc">Terlama</SelectItem>
                     <SelectItem value="rating_desc">Rating Tertinggi</SelectItem>
@@ -378,15 +378,15 @@ export default function AdminFeedbackDashboard({ onLogout, onNavigateToDashboard
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Search</Label>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Search</Label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
                     placeholder="Cari nama, email, pesan..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 w-full"
                   />
                 </div>
               </div>
@@ -538,50 +538,49 @@ export default function AdminFeedbackDashboard({ onLogout, onNavigateToDashboard
 
       {/* Update Dialog */}
       <Dialog open={showUpdateDialog} onOpenChange={setShowUpdateDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Update Feedback Status</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label>Status</Label>
-              <Select value={updateForm.status} onValueChange={(v: string) => setUpdateForm({...updateForm, status: v})}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="in_review">In Review</SelectItem>
-                  <SelectItem value="resolved">Resolved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Status</Label>
+              <select
+                value={updateForm.status}
+                onChange={(e) => setUpdateForm({...updateForm, status: e.target.value})}
+                className="flex h-9 w-full rounded-md border border-input bg-input-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="pending">Pending</option>
+                <option value="in_review">In Review</option>
+                <option value="resolved">Resolved</option>
+                <option value="rejected">Rejected</option>
+              </select>
             </div>
-            <div>
-              <Label>Priority</Label>
-              <Select value={updateForm.priority} onValueChange={(v: string) => setUpdateForm({...updateForm, priority: v})}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="critical">Critical</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Priority</Label>
+              <select
+                value={updateForm.priority}
+                onChange={(e) => setUpdateForm({...updateForm, priority: e.target.value})}
+                className="flex h-9 w-full rounded-md border border-input bg-input-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
             </div>
-            <div>
-              <Label>Admin Notes</Label>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Admin Notes</Label>
               <Textarea
                 value={updateForm.admin_notes}
                 onChange={(e) => setUpdateForm({...updateForm, admin_notes: e.target.value})}
                 placeholder="Catatan internal atau pesan untuk user..."
                 rows={4}
+                className="resize-none"
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowUpdateDialog(false)}>Batal</Button>
             <Button onClick={handleUpdateStatus}>Update</Button>
           </DialogFooter>

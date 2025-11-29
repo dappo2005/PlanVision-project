@@ -264,7 +264,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
     },
     {
       name: "Refael Tresia Sibarani",
-      role: "Business Analyst",
+      role: "System Analyst",
       expertise: "Requirement Engineer",
       avatar: "RT",
       color: "bg-gradient-to-br from-[#2ECC71] to-[#F39C12]",

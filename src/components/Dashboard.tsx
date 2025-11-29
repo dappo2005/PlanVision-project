@@ -302,7 +302,7 @@ export default function Dashboard({
     },
     {
       name: "Refael Tresia Sibarani",
-      role: "Business Analyst",
+      role: "System Analyst",
       expertise: "Requirement Engineer",
       avatar: "RT",
       color: "bg-gradient-to-br from-[#2ECC71] to-[#F39C12]",
@@ -570,46 +570,56 @@ export default function Dashboard({
               Jelajahi fitur-fitur PlantVision
             </p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 max-w-6xl mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
             <Button
               onClick={onNavigateToDetector}
               variant="outline"
-              className="h-24 flex flex-col gap-2 hover:bg-green-50 hover:border-[#2ECC71] hover:text-[#2ECC71]"
+              className="h-24 flex flex-col gap-2 bg-gradient-to-br from-[#2ECC71]/10 to-[#27AE60]/10 border-2 border-[#2ECC71]/30 hover:bg-gradient-to-br hover:from-[#2ECC71] hover:to-[#27AE60] hover:text-white hover:border-[#2ECC71] transition-all duration-300 hover:scale-110 hover:shadow-xl relative overflow-hidden group"
             >
-              <Camera className="w-6 h-6" />
-              <span>Deteksi Penyakit</span>
+              <div className="absolute inset-0 bg-gradient-to-br from-[#2ECC71]/20 to-[#27AE60]/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <Camera className="w-6 h-6 relative z-10 group-hover:animate-bounce" />
+              <span className="relative z-10 font-semibold">Deteksi Penyakit</span>
+              <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-[#2ECC71]/20 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </Button>
             <Button
               onClick={onNavigateToMonitoring}
               variant="outline"
-              className="h-24 flex flex-col gap-2 hover:bg-cyan-50 hover:border-cyan-500 hover:text-cyan-600"
+              className="h-24 flex flex-col gap-2 bg-gradient-to-br from-cyan-500/10 to-cyan-600/10 border-2 border-cyan-500/30 hover:bg-gradient-to-br hover:from-cyan-500 hover:to-cyan-600 hover:text-white hover:border-cyan-500 transition-all duration-300 hover:scale-110 hover:shadow-xl relative overflow-hidden group"
             >
-              <Radio className="w-6 h-6" />
-              <span>Monitoring</span>
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 to-cyan-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <Radio className="w-6 h-6 relative z-10 group-hover:animate-bounce" />
+              <span className="relative z-10 font-semibold">Monitoring</span>
+              <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-cyan-500/20 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </Button>
             <Button
               onClick={onNavigateToChatAI}
               variant="outline"
-              className="h-24 flex flex-col gap-2 hover:bg-blue-50 hover:border-blue-500 hover:text-blue-600"
+              className="h-24 flex flex-col gap-2 bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-2 border-blue-500/30 hover:bg-gradient-to-br hover:from-blue-500 hover:to-blue-600 hover:text-white hover:border-blue-500 transition-all duration-300 hover:scale-110 hover:shadow-xl relative overflow-hidden group"
             >
-              <Cpu className="w-6 h-6" />
-              <span>Chat AI</span>
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <Cpu className="w-6 h-6 relative z-10 group-hover:animate-bounce" />
+              <span className="relative z-10 font-semibold">Chat AI</span>
+              <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-blue-500/20 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </Button>
             <Button
               onClick={onNavigateToNews}
               variant="outline"
-              className="h-24 flex flex-col gap-2 hover:bg-purple-50 hover:border-purple-500 hover:text-purple-600"
+              className="h-24 flex flex-col gap-2 bg-gradient-to-br from-purple-500/10 to-purple-600/10 border-2 border-purple-500/30 hover:bg-gradient-to-br hover:from-purple-500 hover:to-purple-600 hover:text-white hover:border-purple-500 transition-all duration-300 hover:scale-110 hover:shadow-xl relative overflow-hidden group"
             >
-              <FileText className="w-6 h-6" />
-              <span>Berita</span>
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-purple-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <FileText className="w-6 h-6 relative z-10 group-hover:animate-bounce" />
+              <span className="relative z-10 font-semibold">Berita</span>
+              <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-purple-500/20 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </Button>
             <Button
               onClick={onNavigateToFeedback}
               variant="outline"
-              className="h-24 flex flex-col gap-2 hover:bg-orange-50 hover:border-[#F39C12] hover:text-[#F39C12]"
+              className="h-24 md:col-start-2 md:col-span-1 flex flex-col gap-2 bg-gradient-to-br from-[#F39C12]/10 to-[#E67E22]/10 border-2 border-[#F39C12]/30 hover:bg-gradient-to-br hover:from-[#F39C12] hover:to-[#E67E22] hover:text-white hover:border-[#F39C12] transition-all duration-300 hover:scale-110 hover:shadow-xl relative overflow-hidden group"
             >
-              <Upload className="w-6 h-6" />
-              <span>Saran & Kritik</span>
+              <div className="absolute inset-0 bg-gradient-to-br from-[#F39C12]/20 to-[#E67E22]/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <Upload className="w-6 h-6 relative z-10 group-hover:animate-bounce" />
+              <span className="relative z-10 font-semibold">Saran & Kritik</span>
+              <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-[#F39C12]/20 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </Button>
           </div>
 

@@ -35,7 +35,7 @@ const teamMembers = [
   },
   {
     name: "Refael Tresia Sibarani",
-    role: "Business Analyst, Requirement Engineer",
+    role: "System Analyst, Requirement Engineer",
     email: "tersia.30323@gmail.com",
     phone: "+6282274044572",
     instagram: "@neon.ren",

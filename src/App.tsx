@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import LandingPage from "./components/LandingPage";
 import Dashboard from "./components/Dashboard";
@@ -13,6 +13,7 @@ import AdminFeedbackDashboard from "./components/admin/AdminFeedbackDashboard";
 import AdminDashboard from "./components/admin/AdminDashboard";
 import Contact from "./components/Contact";
 import Navbar from "./components/Navbar";
+import Sidebar from "./components/Sidebar";
 import { Toaster } from "./components/ui/sonner";
 
 // Protected Route Component
@@ -90,11 +91,17 @@ export default function App() {
 
   return (
     <>
-      {/* Navbar - Only show on non-guest pages */}
-      {!isGuestPage && (
+      {/* Navbar - Only show on landing page */}
+      {isLandingPage && !isGuestPage && (
         <Navbar
-          variant={isLandingPage ? "landing" : "authenticated"}
+          variant="landing"
           onLogin={() => setShowLoginDialog(true)}
+        />
+      )}
+
+      {/* Sidebar - Only show on authenticated pages (not landing and not guest) */}
+      {!isLandingPage && !isGuestPage && isAuthenticated && (
+        <Sidebar
           onLogout={handleLogout}
           onNavigateToDashboard={() => navigate("/dashboard")}
           onNavigateToDetector={() => navigate("/disease-detector")}
@@ -106,7 +113,17 @@ export default function App() {
         />
       )}
 
-      <Routes>
+      {/* Main Content Area - dengan margin untuk sidebar yang menyesuaikan */}
+      <main 
+        className={!isLandingPage && !isGuestPage && isAuthenticated ? "min-h-screen sidebar-content" : ""}
+        style={{
+          marginLeft: !isLandingPage && !isGuestPage && isAuthenticated 
+            ? 'var(--sidebar-width, 80px)' 
+            : '0',
+          transition: 'margin-left 0.2s ease',
+        }}
+      >
+        <Routes>
         {/* Public Routes */}
         <Route 
           path="/" 
@@ -280,7 +297,8 @@ export default function App() {
 
         {/* Catch all - redirect to landing */}
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+        </Routes>
+      </main>
 
       <Toaster />
     </>
