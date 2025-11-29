@@ -55,9 +55,9 @@ console.log("[Feedback] API_URL:", API_URL);
     const loadPublicFeedbacks = async () => {
       setIsLoadingFeedbacks(true);
       try {
-        // Tambahkan timeout 5 detik
+        // Timeout 15 detik (lebih lama untuk koneksi lambat)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
         
         const response = await fetch(`${API_URL}/api/feedback/public?limit=10&sort=date_desc`, {
           signal: controller.signal
@@ -69,22 +69,12 @@ console.log("[Feedback] API_URL:", API_URL);
           const data = await response.json();
           setPublicFeedbacks(data.feedbacks || []);
         } else {
+          // Jangan tampilkan toast error, hanya log ke console
           console.error('Failed to load feedbacks:', response.status);
-          toast.error("Gagal memuat ulasan", {
-            description: "Pastikan backend berjalan di " + API_URL
-          });
         }
       } catch (error: any) {
-        if (error.name === 'AbortError') {
-          toast.error("Timeout memuat ulasan", {
-            description: "Backend tidak merespons. Pastikan backend Flask berjalan di " + API_URL
-          });
-        } else {
-          console.error('Error loading public feedbacks:', error);
-          toast.error("Gagal memuat ulasan", {
-            description: error.message || "Tidak bisa terhubung ke backend"
-          });
-        }
+        // Hanya log error, tidak tampilkan toast (agar tidak mengganggu UX)
+        console.error('Error loading public feedbacks:', error);
       } finally {
         setIsLoadingFeedbacks(false);
       }
