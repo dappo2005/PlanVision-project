@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reset PlantVision LocalStorage</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #2ECC71, #27AE60);
+            margin: 0;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 500px;
+        }
+        h1 { color: #2ECC71; margin-bottom: 20px; }
+        .btn {
+            background: #2ECC71;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s;
+        }
+        .btn:hover { background: #27AE60; transform: scale(1.05); }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .info { background: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Reset PlantVision</h1>
+        <p>Gunakan tombol ini untuk mengatasi masalah Admin Panel</p>
+        
+        <button class="btn" onclick="resetAndRedirect()">
+            🔄 Clear LocalStorage & Login
+        </button>
+        
+        <button class="btn" onclick="checkStorage()">
+            🔍 Cek Data Saat Ini
+        </button>
+        
+        <div id="status"></div>
+    </div>
+
+    <script>
+        function resetAndRedirect() {
+            // Clear everything
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            // Clear cookies for localhost
+            document.cookie.split(";").forEach(function(c) { 
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+            });
+            
+            document.getElementById('status').innerHTML = 
+                '<div class="status success">✅ Semua data dihapus!<br>Redirect ke login dalam 2 detik...</div>';
+            
+            setTimeout(() => {
+                // Force reload dengan clear cache
+                window.location.replace('http://localhost:3001');
+            }, 2000);
+        }
+
+        function checkStorage() {
+            const user = localStorage.getItem('user');
+            if (user) {
+                const userData = JSON.parse(user);
+                document.getElementById('status').innerHTML = 
+                    `<div class="status info">
+                        <strong>Data User Saat Ini:</strong><br>
+                        Email: ${userData.email || 'N/A'}<br>
+                        Role: ${userData.role || 'N/A'}<br>
+                        <br>
+                        ${userData.role === 'superadmin' 
+                            ? '✅ Role sudah superadmin!' 
+                            : '❌ Role bukan superadmin - perlu reset!'}
+                    </div>`;
+            } else {
+                document.getElementById('status').innerHTML = 
+                    '<div class="status info">ℹ️ LocalStorage kosong - silakan login</div>';
+            }
+        }
+
+        // Auto check on load
+        window.onload = checkStorage;
+    </script>
+</body>
+</html>
