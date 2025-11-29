@@ -7,6 +7,8 @@ import { Leaf, ArrowLeft, Home, Send, Bot, User, Sparkles, MessageSquare } from 
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 
+
+
 interface ChatAIProps {
   onLogout: () => void;
   onNavigateToDashboard: () => void;
@@ -24,6 +26,8 @@ interface Message {
   timestamp: Date;
 }
 
+const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+
 const quickQuestions = [
   "Bagaimana cara mengatasi citrus canker?",
   "Apa penyebab daun jeruk menguning?",
@@ -32,19 +36,7 @@ const quickQuestions = [
   "Bagaimana cara mencegah hama kutu loncat?",
 ];
 
-const aiResponses: Record<string, string> = {
-  "citrus canker": "Citrus Canker disebabkan oleh bakteri Xanthomonas citri. Cara mengatasinya:\n\n✓ Pangkas dan bakar bagian tanaman yang terinfeksi\n✓ Semprot dengan bakterisida berbasis tembaga (Copper hydroxide 77%)\n✓ Aplikasikan setiap 7-10 hari saat musim hujan\n✓ Isolasi tanaman yang terinfeksi\n✓ Gunakan antibiotik streptomycin sulfate 20% (100-200 ppm)\n\nPencegahan: Gunakan bibit bersertifikat, hindari pemangkasan saat hujan, jaga jarak tanam minimal 5-6 meter.",
-  
-  "menguning": "Daun jeruk menguning bisa disebabkan beberapa faktor:\n\n1. **Defisiensi Nitrogen**: Daun tua menguning, solusi: pupuk NPK atau urea\n2. **Huanglongbing (HLB)**: Menguning tidak merata (blotchy), TIDAK ADA OBAT - cabut tanaman\n3. **Kelebihan Air**: Akar busuk, perbaiki drainase\n4. **Defisiensi Zat Besi**: Daun muda menguning, gunakan chelated iron\n\nLakukan diagnosa tepat sebelum treatment!",
-  
-  "memangkas": "Waktu terbaik memangkas pohon jeruk:\n\n🌤️ **Musim Kemarau** (Juni-Agustus):\n✓ Luka pangkasan cepat kering\n✓ Risiko infeksi rendah\n✓ Pertumbuhan tunas baru optimal\n\n❌ **Hindari Musim Hujan**:\n- Luka basah mudah terinfeksi bakteri\n- Penyebaran penyakit lebih cepat\n\nTips: Sterilkan alat pangkas dengan alkohol 70% atau lysol sebelum dan sesudah digunakan.",
-  
-  "pupuk": "Rekomendasi pemupukan jeruk:\n\n🌱 **Tanaman Muda (0-3 tahun)**:\n- NPK 15-15-15: 100-300 gram/pohon/bulan\n- Pupuk organik: 10-20 kg/pohon/6 bulan\n\n🍊 **Tanaman Produktif (>3 tahun)**:\n- NPK 16-16-16: 500-1000 gram/pohon/bulan\n- Pupuk organik: 30-50 kg/pohon/tahun\n- Dolomit: 2-3 kg/pohon/tahun (jika pH tanah <5.5)\n\n💧 **Mikronutrien**:\n- Semprot daun dengan ZnSO4, MnSO4, dan Borax setiap 2 bulan\n\nWaktu pemupukan: Awal musim hujan dan menjelang berbunga.",
-  
-  "kutu loncat": "Kutu loncat (Diaphorina citri) adalah vektor HLB yang sangat berbahaya!\n\n🎯 **Pengendalian Terpadu**:\n\n1. **Kimiawi**:\n   - Imidacloprid 20% SL (0.5 ml/liter)\n   - Thiamethoxam 25% WG (0.2 gram/liter)\n   - Aplikasi setiap 2 minggu\n\n2. **Biologis**:\n   - Lepas predator: Curinus coeruleus\n   - Parasitoid: Tamarixia radiata\n\n3. **Mekanis**:\n   - Pasang perangkap kuning\n   - Buang tunas yang terserang\n\n4. **Kultur Teknis**:\n   - Bersihkan gulma sekitar\n   - Jaga sanitasi kebun\n   - Monitoring rutin setiap minggu\n\n⚠️ PENTING: Kutu ini menularkan HLB yang tidak bisa disembuhkan!",
-  
-  "default": "Terima kasih atas pertanyaan Anda! Sebagai asisten AI PlantVision, saya siap membantu dengan:\n\n🌿 Identifikasi penyakit jeruk\n🌱 Panduan budidaya dan perawatan\n💊 Rekomendasi pestisida dan fungisida\n🌤️ Tips pemupukan dan irigasi\n🐛 Pengendalian hama dan penyakit\n\nSilakan tanyakan pertanyaan spesifik Anda tentang pertanian jeruk, dan saya akan memberikan jawaban yang detail dan praktis!"
-};
+
 
 export default function ChatAI({ 
   onLogout, 
@@ -73,21 +65,10 @@ export default function ChatAI({
     }
   }, [messages, isTyping]);
 
-  const getAIResponse = (userMessage: string): string => {
-    const lowerMessage = userMessage.toLowerCase();
-    
-    for (const [key, response] of Object.entries(aiResponses)) {
-      if (lowerMessage.includes(key)) {
-        return response;
-      }
-    }
-    
-    return aiResponses.default;
-  };
-
-  const handleSendMessage = () => {
+ const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
 
+    // 1. Tambahkan pesan user ke UI
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -96,20 +77,49 @@ export default function ChatAI({
     };
 
     setMessages(prev => [...prev, userMessage]);
-    setInputMessage("");
-    setIsTyping(true);
+    const messageToSend = inputMessage; // Simpan pesan untuk dikirim
+    setInputMessage(""); // Clear input
+    setIsTyping(true); // Tampilkan loading
 
-    // Simulate AI response delay
-    setTimeout(() => {
+    try {
+      // 2. Panggil API Backend Flask
+      const response = await fetch(`${API_URL}/api/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: messageToSend }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Gagal menghubungi AI');
+      }
+
+      // 3. Tambahkan balasan AI ke UI
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: getAIResponse(inputMessage),
+        content: data.reply, // Ambil text dari response backend
         timestamp: new Date()
       };
+      
       setMessages(prev => [...prev, aiMessage]);
-      setIsTyping(false);
-    }, 1000 + Math.random() * 1000);
+
+    } catch (error) {
+      console.error("Chat Error:", error);
+      // Tampilkan pesan error ke chat bubble jika gagal
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: "Maaf, terjadi kesalahan koneksi. Silakan coba lagi.",
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsTyping(false); // Matikan loading
+    }
   };
 
   const handleQuickQuestion = (question: string) => {
