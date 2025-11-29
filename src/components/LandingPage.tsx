@@ -10,13 +10,9 @@ import { Leaf, Camera, Network, BarChart3, FileText, Cloud, Linkedin, Github, Ma
 import { useState } from "react";
 import React from "react";
 
-<<<<<<< HEAD
-const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
-=======
 // Force localhost:5000 untuk development
 const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
 console.log("[LandingPage] Using API_URL:", API_URL);
->>>>>>> f76f0a2fe1f6818f9aecec30a8e65e2049a1bddc
 
 interface LandingPageProps {
   onLogin: () => void;
