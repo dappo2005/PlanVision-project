@@ -10,7 +10,7 @@ import { Leaf, Camera, Network, BarChart3, FileText, Cloud, Linkedin, Github, Ma
 import { useState } from "react";
 import React from "react";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://192.168.100.87:5000";
+const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
 
 interface LandingPageProps {
   onLogin: () => void;
