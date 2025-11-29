@@ -27,6 +27,8 @@ interface NewsArticle {
   author: string;
   readTime: string;
   content?: string;
+  url?: string; // URL untuk berita dari internet
+  isRealNews?: boolean; // Flag untuk membedakan berita real vs lokal
 }
 
 const newsData: NewsArticle[] = [
@@ -120,6 +122,8 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [editingArticleId, setEditingArticleId] = useState<string | null>(null);
+  const [isLoadingNews, setIsLoadingNews] = useState(false);
+  const [newsError, setNewsError] = useState<string | null>(null);
   
   // Check user role
   const [userRole, setUserRole] = useState<string>('user');
@@ -135,6 +139,123 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
       console.error('Error loading user role:', error);
     }
   }, []);
+
+  // Fetch real news from internet
+  React.useEffect(() => {
+    fetchRealNews();
+  }, []);
+
+  const fetchRealNews = async () => {
+    setIsLoadingNews(true);
+    setNewsError(null);
+    
+    try {
+      // Menggunakan API berita Indonesia yang gratis
+      // Mencoba beberapa sumber berita
+      const sources = [
+        { url: 'https://api-berita-indonesia.vercel.app/cnn/terbaru', name: 'CNN' },
+        { url: 'https://api-berita-indonesia.vercel.app/antaranews/terbaru', name: 'Antara' },
+        { url: 'https://api-berita-indonesia.vercel.app/tribun/terbaru', name: 'Tribun' }
+      ];
+
+      const allNews: NewsArticle[] = [];
+      
+      // Fetch dari beberapa sumber
+      for (const source of sources) {
+        try {
+          const response = await fetch(source.url, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            
+            // Parse data dari API (format bisa berbeda per API)
+            let articlesData: any[] = [];
+            
+            if (data.data && Array.isArray(data.data)) {
+              articlesData = data.data;
+            } else if (data.articles && Array.isArray(data.articles)) {
+              articlesData = data.articles;
+            } else if (data.results && Array.isArray(data.results)) {
+              articlesData = data.results;
+            } else if (Array.isArray(data)) {
+              articlesData = data;
+            }
+            
+            if (articlesData.length > 0) {
+              const articles = articlesData.slice(0, 3).map((item: any, index: number) => {
+                // Map ke format NewsArticle
+                const title = item.title || item.headline || item.judul || '';
+                const description = item.description || item.content || item.excerpt || item.isi || item.summary || '';
+                const image = item.image || item.thumbnail || item.urlToImage || item.gambar || item.img || 'https://images.unsplash.com/photo-1642519561465-d9c699d2dddd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080';
+                const link = item.link || item.url || item.permalink || '';
+                const pubDate = item.pubDate || item.publishedAt || item.tanggal || item.date || new Date().toISOString();
+                
+                // Kategorisasi berdasarkan keyword
+                let category: "teknologi" | "budidaya" | "pasar" | "penelitian" = "teknologi";
+                const titleLower = title.toLowerCase();
+                const descLower = description.toLowerCase();
+                
+                if (titleLower.includes('budidaya') || titleLower.includes('tanam') || titleLower.includes('panen') || titleLower.includes('pertanian') || descLower.includes('budidaya') || descLower.includes('pertanian')) {
+                  category = "budidaya";
+                } else if (titleLower.includes('harga') || titleLower.includes('pasar') || titleLower.includes('ekspor') || titleLower.includes('komoditas') || descLower.includes('harga') || descLower.includes('pasar')) {
+                  category = "pasar";
+                } else if (titleLower.includes('penelitian') || titleLower.includes('riset') || titleLower.includes('studi') || titleLower.includes('penemuan') || descLower.includes('penelitian')) {
+                  category = "penelitian";
+                } else if (titleLower.includes('teknologi') || titleLower.includes('ai') || titleLower.includes('iot') || titleLower.includes('digital') || titleLower.includes('sensor') || descLower.includes('teknologi')) {
+                  category = "teknologi";
+                }
+
+                return {
+                  id: `real-${Date.now()}-${source.name}-${index}`,
+                  title: title,
+                  excerpt: description.substring(0, 150) + (description.length > 150 ? '...' : ''),
+                  category: category,
+                  date: new Date(pubDate).toLocaleDateString('id-ID', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  }),
+                  image: image,
+                  author: item.author || item.source || item.penulis || source.name || 'Sumber Berita',
+                  readTime: `${Math.ceil((description.length || 500) / 200)} menit`,
+                  content: description,
+                  url: link,
+                  isRealNews: true
+                } as NewsArticle;
+              });
+              
+              allNews.push(...articles);
+            }
+          }
+        } catch (error) {
+          console.error(`Error fetching from ${source.name}:`, error);
+        }
+      }
+
+      // Jika berhasil mendapatkan berita, gabungkan dengan berita lokal
+      if (allNews.length > 0) {
+        // Gabungkan: berita real di atas, lalu berita lokal
+        setNewsList([...allNews, ...newsData]);
+        toast.success(`Berhasil memuat ${allNews.length} berita terbaru dari internet`);
+      } else {
+        // Jika gagal, tetap gunakan berita lokal
+        setNewsList(newsData);
+        setNewsError("Tidak dapat memuat berita dari internet, menampilkan berita lokal");
+      }
+    } catch (error) {
+      console.error('Error fetching real news:', error);
+      setNewsError("Gagal memuat berita dari internet");
+      // Tetap tampilkan berita lokal jika error
+      setNewsList(newsData);
+    } finally {
+      setIsLoadingNews(false);
+    }
+  };
   
   const isAdmin = userRole === 'superadmin';
   
@@ -410,16 +531,43 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
             <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-6">
               Informasi terbaru seputar teknologi, budidaya, pasar, dan penelitian di industri jeruk Indonesia
             </p>
-            {/* Tombol Buat Berita - Hanya untuk Superadmin */}
-            {isAdmin && (
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              {/* Tombol Refresh Berita */}
               <Button 
-                onClick={() => setShowCreateDialog(true)}
-                className="bg-gradient-to-r from-[#2ECC71] to-[#F39C12] hover:from-[#27AE60] hover:to-[#E67E22] text-white shadow-lg"
-                size="lg"
+                onClick={fetchRealNews}
+                variant="outline"
+                disabled={isLoadingNews}
+                className="border-[#2ECC71] text-[#2ECC71] hover:bg-[#2ECC71] hover:text-white"
               >
-                <Plus className="w-5 h-5 mr-2" />
-                Buat Berita Baru
+                {isLoadingNews ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-[#2ECC71] border-t-transparent rounded-full animate-spin mr-2" />
+                    Memuat...
+                  </>
+                ) : (
+                  <>
+                    <Newspaper className="w-4 h-4 mr-2" />
+                    Refresh Berita
+                  </>
+                )}
               </Button>
+              {/* Tombol Buat Berita - Hanya untuk Superadmin */}
+              {isAdmin && (
+                <Button 
+                  onClick={() => setShowCreateDialog(true)}
+                  className="bg-gradient-to-r from-[#2ECC71] to-[#F39C12] hover:from-[#27AE60] hover:to-[#E67E22] text-white shadow-lg"
+                  size="lg"
+                >
+                  <Plus className="w-5 h-5 mr-2" />
+                  Buat Berita Baru
+                </Button>
+              )}
+            </div>
+            {/* Error Message */}
+            {newsError && (
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 text-sm max-w-2xl mx-auto">
+                {newsError}
+              </div>
             )}
           </div>
 
@@ -499,16 +647,26 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
                               </Button>
                             </>
                           )}
-                          <Button 
-                            onClick={() => {
-                              setSelectedArticle(filteredNews[0]);
-                              setShowDetailDialog(true);
-                            }}
-                            className="bg-gradient-to-r from-[#2ECC71] to-[#27AE60] hover:from-[#27AE60] hover:to-[#229954] text-white"
-                          >
-                          Baca Selengkapnya
-                          <ExternalLink className="w-4 h-4 ml-2" />
-                        </Button>
+                          {filteredNews[0].url ? (
+                            <Button 
+                              onClick={() => window.open(filteredNews[0].url, '_blank')}
+                              className="bg-gradient-to-r from-[#2ECC71] to-[#27AE60] hover:from-[#27AE60] hover:to-[#229954] text-white"
+                            >
+                              Baca di Sumber Asli
+                              <ExternalLink className="w-4 h-4 ml-2" />
+                            </Button>
+                          ) : (
+                            <Button 
+                              onClick={() => {
+                                setSelectedArticle(filteredNews[0]);
+                                setShowDetailDialog(true);
+                              }}
+                              className="bg-gradient-to-r from-[#2ECC71] to-[#27AE60] hover:from-[#27AE60] hover:to-[#229954] text-white"
+                            >
+                              Baca Selengkapnya
+                              <ExternalLink className="w-4 h-4 ml-2" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -569,17 +727,28 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
                               </Button>
                             </>
                           )}
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="text-[#2ECC71] hover:text-[#27AE60]"
-                            onClick={() => {
-                              setSelectedArticle(article);
-                              setShowDetailDialog(true);
-                            }}
-                          >
-                          Baca <ExternalLink className="w-3 h-3 ml-1" />
-                        </Button>
+                          {article.url ? (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-[#2ECC71] hover:text-[#27AE60]"
+                              onClick={() => window.open(article.url, '_blank')}
+                            >
+                              Baca di Sumber <ExternalLink className="w-3 h-3 ml-1" />
+                            </Button>
+                          ) : (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-[#2ECC71] hover:text-[#27AE60]"
+                              onClick={() => {
+                                setSelectedArticle(article);
+                                setShowDetailDialog(true);
+                              }}
+                            >
+                              Baca <ExternalLink className="w-3 h-3 ml-1" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -595,8 +764,8 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
               handleDialogClose();
             }
           }}>
-            <DialogContent className="sm:max-w-lg max-h-[75vh] p-0 !grid-rows-[auto_1fr_auto] [&>button]:z-10">
-              <DialogHeader className="flex-shrink-0 px-3 pt-3 pb-2 border-b">
+            <DialogContent className="sm:max-w-lg max-h-[90vh] h-[90vh] p-0 flex flex-col [&>button]:z-10">
+              <DialogHeader className="flex-shrink-0 px-4 pt-4 pb-3 border-b">
                 <DialogTitle className="text-lg flex items-center gap-2">
                   <Plus className="w-4 h-4 text-[#2ECC71]" />
                   Buat Berita Baru
@@ -606,8 +775,8 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
                 </DialogDescription>
               </DialogHeader>
 
-              <form id="create-news-form" onSubmit={handleCreateArticle} className="flex flex-col min-h-0 overflow-hidden">
-                <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
+              <form id="create-news-form" onSubmit={handleCreateArticle} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-4" style={{ maxHeight: 'calc(90vh - 180px)' }}>
                   {/* Title */}
                 <div className="space-y-2">
                   <Label htmlFor="title">Judul Berita *</Label>
@@ -738,7 +907,7 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
                 </div>
 
                 {/* Action Buttons - Fixed at bottom */}
-                <div className="flex justify-end gap-2 pt-2 border-t flex-shrink-0 px-3 pb-3 bg-white">
+                <div className="flex justify-end gap-2 pt-3 border-t flex-shrink-0 px-4 pb-4 bg-white mt-auto">
                   <Button
                     type="button"
                     variant="outline"
@@ -766,8 +935,8 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
               handleEditDialogClose();
             }
           }}>
-            <DialogContent className="sm:max-w-lg max-h-[75vh] p-0 !grid-rows-[auto_1fr_auto] [&>button]:z-10">
-              <DialogHeader className="flex-shrink-0 px-3 pt-3 pb-2 border-b">
+            <DialogContent className="sm:max-w-lg max-h-[90vh] h-[90vh] p-0 flex flex-col [&>button]:z-10">
+              <DialogHeader className="flex-shrink-0 px-4 pt-4 pb-3 border-b">
                 <DialogTitle className="text-lg flex items-center gap-2">
                   <Edit className="w-4 h-4 text-blue-600" />
                   Edit Berita
@@ -777,8 +946,8 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
                 </DialogDescription>
               </DialogHeader>
 
-              <form id="edit-news-form" onSubmit={handleUpdateArticle} className="flex flex-col min-h-0 overflow-hidden">
-                <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
+              <form id="edit-news-form" onSubmit={handleUpdateArticle} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-4" style={{ maxHeight: 'calc(90vh - 180px)' }}>
                   {/* Title */}
                   <div className="space-y-2">
                     <Label htmlFor="edit-title">Judul Berita *</Label>
@@ -909,7 +1078,7 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
                 </div>
 
                 {/* Action Buttons - Fixed at bottom */}
-                <div className="flex justify-end gap-2 pt-2 border-t flex-shrink-0 px-3 pb-3 bg-white">
+                <div className="flex justify-end gap-2 pt-3 border-t flex-shrink-0 px-4 pb-4 bg-white mt-auto">
                   <Button
                     type="button"
                     variant="outline"

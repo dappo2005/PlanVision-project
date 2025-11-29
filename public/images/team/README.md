@@ -4,7 +4,7 @@ Silakan tambahkan foto anggota tim dengan nama file berikut:
 
 1. **daffa.jpg** - Daffa Maulana KAL (Project Manager, Backend Developer)
 2. **aisyah.jpg** - Aisyah Putri Harmelia (Frontend Developer, Data Analyst)
-3. **refael.jpg** - Refael Tresia Sibarani (Business Analyst, Requirement Engineer)
+3. **refael.jpg** - Refael Tresia Sibarani (System Analyst, Requirement Engineer)
 4. **imam.jpg** - Imam Yanif (Database Analyst, Deployment Specialist)
 
 ## Format Foto
