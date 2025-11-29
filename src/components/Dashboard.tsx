@@ -16,6 +16,7 @@ import {
   Leaf,
   Camera,
   Network,
+  Radio,
   BarChart3,
   FileText,
   Cloud,
@@ -47,10 +48,13 @@ import {
 } from "recharts";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { useState } from "react";
+import React from "react";
+import { useNavigate } from "react-router-dom";
 
 interface DashboardProps {
   onLogout: () => void;
   onNavigateToDetector: () => void;
+  onNavigateToMonitoring: () => void;
   onNavigateToChatAI: () => void;
   onNavigateToNews: () => void;
   onNavigateToFeedback: () => void;
@@ -105,11 +109,83 @@ function TeamMemberCard({ member }: { member: TeamMember }) {
 export default function Dashboard({
   onLogout,
   onNavigateToDetector,
+  onNavigateToMonitoring,
   onNavigateToChatAI,
   onNavigateToNews,
   onNavigateToFeedback,
   onNavigateToContact,
 }: DashboardProps) {
+  const [userRole, setUserRole] = useState<string>('user');
+
+  // Check user role
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        const user = JSON.parse(stored);
+        setUserRole(user.role || 'user');
+      }
+    } catch (_) {
+      setUserRole('user');
+    }
+  }, []);
+
+  const [userData, setUserData] = useState<{nama: string, email: string, role: string} | null>(null);
+
+  // Load user data and role - with auto-sync from backend
+  React.useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const stored = localStorage.getItem('user');
+        if (stored) {
+          const user = JSON.parse(stored);
+          const userId = user.user_id || user.id;
+          
+          // ALWAYS sync role from backend to ensure it's up-to-date
+          if (user.email) {
+            try {
+              const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+              console.log('[Dashboard] Syncing role from:', `${API_URL}/api/user/role?email=${encodeURIComponent(user.email)}`);
+              const response = await fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(user.email)}`);
+              console.log('[Dashboard] Role sync response status:', response.status);
+              if (response.ok) {
+                const data = await response.json();
+                console.log('[Dashboard] Role sync response data:', data);
+                if (data.role) {
+                  // ALWAYS update localStorage with role from backend (force sync)
+                  const updatedUser = { ...user, role: data.role };
+                  localStorage.setItem('user', JSON.stringify(updatedUser));
+                  user.role = data.role;
+                  console.log('[Dashboard] Role FORCE SYNC from backend:', data.role, '(was:', user.role || 'undefined', ')');
+                }
+              } else {
+                const errorData = await response.json().catch(() => ({}));
+                console.error('[Dashboard] Role sync failed:', response.status, errorData);
+              }
+            } catch (error) {
+              console.error('[Dashboard] Could not sync role from backend:', error);
+            }
+          }
+          
+          setUserData({
+            nama: user.nama || 'User',
+            email: user.email || '',
+            role: user.role || 'user'
+          });
+          setUserRole(user.role || 'user');
+          console.log('[Dashboard] User role:', user.role);
+          console.log('[Dashboard] User data:', user);
+        }
+      } catch (_) {
+        setUserRole('user');
+      }
+    };
+    
+    loadUserData();
+  }, []);
+
+  const isSuperadmin = userRole === 'superadmin';
+
   const kpiData = [
     {
       name: "Akurasi",
@@ -330,6 +406,31 @@ export default function Dashboard({
         <div className="absolute top-1/2 left-1/3 w-32 h-32 orange-slice opacity-20" />
         <div className="container mx-auto px-4 relative z-10">
           <div className="max-w-4xl mx-auto text-center space-y-6">
+            {/* User Info & Role Badge */}
+            {userData && (
+              <div className="flex items-center justify-center gap-4 mb-4">
+                <div className="bg-white/20 backdrop-blur-md rounded-full px-6 py-3 flex items-center gap-3 border border-white/30">
+                  <div className="text-left">
+                    <p className="text-sm opacity-80">Selamat datang,</p>
+                    <p className="text-lg font-semibold">{userData.nama}</p>
+                  </div>
+                  <div className="h-8 w-px bg-white/30"></div>
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 border border-white/30">
+                    {isSuperadmin ? (
+                      <>
+                        <div className="w-2.5 h-2.5 bg-purple-300 rounded-full"></div>
+                        <span className="text-sm font-medium">Administrator</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-2.5 h-2.5 bg-green-300 rounded-full"></div>
+                        <span className="text-sm font-medium">Petani</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
             <h1 className="text-5xl md:text-6xl">
               Deteksi Penyakit Daun Jeruk Secara Cepat dan
               Akurat dengan PlantVision
@@ -469,7 +570,7 @@ export default function Dashboard({
               Jelajahi fitur-fitur PlantVision
             </p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-5xl mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 max-w-6xl mx-auto">
             <Button
               onClick={onNavigateToDetector}
               variant="outline"
@@ -477,6 +578,14 @@ export default function Dashboard({
             >
               <Camera className="w-6 h-6" />
               <span>Deteksi Penyakit</span>
+            </Button>
+            <Button
+              onClick={onNavigateToMonitoring}
+              variant="outline"
+              className="h-24 flex flex-col gap-2 hover:bg-cyan-50 hover:border-cyan-500 hover:text-cyan-600"
+            >
+              <Radio className="w-6 h-6" />
+              <span>Monitoring</span>
             </Button>
             <Button
               onClick={onNavigateToChatAI}
@@ -503,6 +612,36 @@ export default function Dashboard({
               <span>Saran & Kritik</span>
             </Button>
           </div>
+
+          {/* Admin Section - Hanya untuk Superadmin */}
+          {isSuperadmin && (
+            <div className="mt-12">
+              <div className="text-center mb-6">
+                <h3 className="text-2xl text-gray-900 mb-2">Panel Admin</h3>
+                <p className="text-gray-600">Fitur khusus untuk administrator</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+                <Button
+                  onClick={() => window.location.href = '/admin'}
+                  variant="outline"
+                  className="h-24 flex flex-col gap-2 hover:bg-purple-50 hover:border-purple-500 hover:text-purple-600 border-2"
+                >
+                  <BarChart3 className="w-6 h-6" />
+                  <span>Admin Panel</span>
+                  <span className="text-xs text-gray-500">Kelola seluruh sistem</span>
+                </Button>
+                <Button
+                  onClick={onNavigateToNews}
+                  variant="outline"
+                  className="h-24 flex flex-col gap-2 hover:bg-blue-50 hover:border-blue-500 hover:text-blue-600 border-2"
+                >
+                  <FileText className="w-6 h-6" />
+                  <span>Kelola Berita</span>
+                  <span className="text-xs text-gray-500">Buat & edit berita</span>
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -890,11 +1029,12 @@ export default function Dashboard({
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-gradient-to-br from-[#2ECC71] to-[#F39C12] rounded-lg flex items-center justify-center">
-                  <Leaf className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-white">PlantVision</span>
+              <div className="flex items-center mb-4">
+                <img 
+                  src="/images/plantvision-logo.png" 
+                  alt="PlantVision Logo" 
+                  className="h-10 w-auto"
+                />
               </div>
               <p className="text-gray-400">
                 Platform IoT & Machine Learning untuk deteksi

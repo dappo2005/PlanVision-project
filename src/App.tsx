@@ -3,34 +3,57 @@ import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-
 import LandingPage from "./components/LandingPage";
 import Dashboard from "./components/Dashboard";
 import DiseaseDetector from "./components/DiseaseDetector";
+import DroneMonitoring from "./components/DroneMonitoring";
 import ChatAI from "./components/ChatAI";
 import News from "./components/News";
 import Feedback from "./components/Feedback";
 import FeedbackGuest from "./components/FeedbackGuest";
 import MyFeedbacks from "./components/MyFeedbacks";
 import AdminFeedbackDashboard from "./components/admin/AdminFeedbackDashboard";
+import AdminDashboard from "./components/admin/AdminDashboard";
 import Contact from "./components/Contact";
 import Navbar from "./components/Navbar";
 import { Toaster } from "./components/ui/sonner";
 
 // Protected Route Component
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({ children, requireAdmin = false }: { children: React.ReactNode; requireAdmin?: boolean }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem('user');
-      setIsAuthenticated(!!stored);
+      if (stored) {
+        const user = JSON.parse(stored);
+        setIsAuthenticated(true);
+        setUserRole(user.role || 'user');
+        
+        // Jika require admin tapi bukan superadmin, redirect
+        if (requireAdmin && user.role !== 'superadmin') {
+          setIsAuthenticated(false);
+        }
+      } else {
+        setIsAuthenticated(false);
+      }
     } catch (_) {
       setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [requireAdmin]);
 
   if (isLoading) return null;
-  return isAuthenticated ? <>{children}</> : <Navigate to="/" replace />;
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+  
+  if (requireAdmin && userRole !== 'superadmin') {
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+  return <>{children}</>;
 }
 
 export default function App() {
@@ -75,6 +98,7 @@ export default function App() {
           onLogout={handleLogout}
           onNavigateToDashboard={() => navigate("/dashboard")}
           onNavigateToDetector={() => navigate("/disease-detector")}
+          onNavigateToMonitoring={() => navigate("/monitoring")}
           onNavigateToChatAI={() => navigate("/chat-ai")}
           onNavigateToNews={() => navigate("/news")}
           onNavigateToFeedback={() => navigate("/feedback")}
@@ -109,6 +133,7 @@ export default function App() {
               <Dashboard 
                 onLogout={handleLogout} 
                 onNavigateToDetector={() => navigate("/disease-detector")}
+                onNavigateToMonitoring={() => navigate("/monitoring")}
                 onNavigateToChatAI={() => navigate("/chat-ai")}
                 onNavigateToNews={() => navigate("/news")}
                 onNavigateToFeedback={() => navigate("/feedback")}
@@ -130,6 +155,17 @@ export default function App() {
                 onNavigateToNews={() => navigate("/news")}
                 onNavigateToFeedback={() => navigate("/feedback")}
                 onNavigateToContact={() => navigate("/contact")}
+              />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/monitoring" 
+          element={
+            <ProtectedRoute>
+              <DroneMonitoring 
+                onNavigateToDashboard={() => navigate("/dashboard")}
               />
             </ProtectedRoute>
           } 
@@ -216,14 +252,27 @@ export default function App() {
           } 
         />
         
-        {/* Admin Feedback Dashboard (Superadmin Only) */}
+        {/* Admin Dashboard (Superadmin Only) */}
+        <Route 
+          path="/admin" 
+          element={
+            <ProtectedRoute requireAdmin={true}>
+              <AdminDashboard 
+                onLogout={handleLogout}
+                onNavigateToDashboard={() => navigate("/dashboard")}
+              />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Admin Feedback Dashboard (Superadmin Only) - Legacy route */}
         <Route 
           path="/admin/feedbacks" 
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireAdmin={true}>
               <AdminFeedbackDashboard 
                 onLogout={handleLogout}
-                onNavigateToDashboard={() => navigate("/dashboard")}
+                onNavigateToDashboard={() => navigate("/admin")}
               />
             </ProtectedRoute>
           } 
@@ -237,3 +286,4 @@ export default function App() {
     </>
   );
 }
+

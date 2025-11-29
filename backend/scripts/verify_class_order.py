@@ -40,3 +40,4 @@ if os.path.exists(data_dir):
 else:
     print(f"❌ Training data not found at: {data_dir}")
     print("   Model mungkin di-train dengan data lain.")
+

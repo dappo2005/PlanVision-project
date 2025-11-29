@@ -147,3 +147,4 @@ def get_disease_info(class_name: str) -> dict:
         "treatment": [],
         "prevention": []
     })
+

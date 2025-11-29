@@ -31,3 +31,4 @@ else:
     print("\n🔧 FIX NEEDED:")
     print("Update CLASS_NAMES in app.py to:")
     print(f"CLASS_NAMES = {class_names}")
+

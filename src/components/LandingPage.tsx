@@ -10,7 +10,13 @@ import { Leaf, Camera, Network, BarChart3, FileText, Cloud, Linkedin, Github, Ma
 import { useState } from "react";
 import React from "react";
 
+<<<<<<< HEAD
 const API_URL = import.meta.env.VITE_API_URL || "http://192.168.171.214:5000";
+=======
+// Force localhost:5000 untuk development
+const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+console.log("[LandingPage] Using API_URL:", API_URL);
+>>>>>>> f76f0a2fe1f6818f9aecec30a8e65e2049a1bddc
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -78,10 +84,59 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       .then(data => {
         if (data.message || data.user_id) {
           // Login sukses
-          console.log("Login successful:", data);
-          // Store user data to localStorage
-          localStorage.setItem('user', JSON.stringify(data));
-          onLogin();
+          console.log("=== LOGIN RESPONSE ===");
+          console.log("Full response:", data);
+          console.log("Role from backend:", data.role);
+          console.log("Email:", data.email);
+          
+          // ALWAYS verify role from backend, even if it exists in response
+          if (data.email) {
+            console.log("Verifying role from backend...");
+            fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(data.email)}`)
+              .then(res => {
+                console.log("Role verification response status:", res.status);
+                if (res.ok) {
+                  return res.json();
+                } else {
+                  throw new Error(`HTTP ${res.status}`);
+                }
+              })
+              .then(roleData => {
+                console.log("Role verification data:", roleData);
+                if (roleData.role) {
+                  // ALWAYS use role from verification endpoint (most up-to-date)
+                  data.role = roleData.role;
+                  console.log("✅ Using verified role:", data.role);
+                } else {
+                  console.warn("⚠️ No role in verification response, using login response role:", data.role);
+                }
+                // Store user data to localStorage
+                localStorage.setItem('user', JSON.stringify(data));
+                const saved = JSON.parse(localStorage.getItem('user') || '{}');
+                console.log("✅ User data saved to localStorage:", saved);
+                console.log("✅ Final role in localStorage:", saved.role);
+                onLogin();
+              })
+              .catch(err => {
+                console.error("❌ Error verifying role:", err);
+                // Fallback: use role from login response
+                if (!data.role) {
+                  data.role = 'user';
+                  console.warn("⚠️ No role in login response, defaulting to 'user'");
+                }
+                localStorage.setItem('user', JSON.stringify(data));
+                console.log("✅ User data saved (with fallback role):", JSON.parse(localStorage.getItem('user') || '{}'));
+                onLogin();
+              });
+          } else {
+            // No email, can't verify - use what we have
+            if (!data.role) {
+              data.role = 'user';
+            }
+            localStorage.setItem('user', JSON.stringify(data));
+            console.log("✅ User data saved (no email for verification):", JSON.parse(localStorage.getItem('user') || '{}'));
+            onLogin();
+          }
           setLoginEmail("");
           setLoginPassword("");
         } else if (data.error) {
@@ -273,11 +328,12 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       <Dialog open={showLoginDialog} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader className="text-center">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-[#2ECC71] to-[#F39C12] rounded-lg flex items-center justify-center">
-                <Leaf className="w-6 h-6 text-white" />
-              </div>
-              <DialogTitle className="text-2xl">PlantVision</DialogTitle>
+            <div className="flex items-center justify-center mb-2">
+              <img 
+                src="/images/plantvision-logo.png" 
+                alt="PlantVision Logo" 
+                className="h-16 w-auto"
+              />
             </div>
             <DialogDescription>
               Platform IoT & Machine Learning untuk deteksi penyakit daun jeruk
@@ -337,7 +393,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
                 <Input
                   id="login-password"
                   type={showLoginPassword ? "text" : "password"}
-                  placeholder=" ••••••••"
+                  placeholder="••••••••"
                   value={loginPassword}
                   onChange={(e) => {
                   setLoginPassword(e.target.value);
@@ -366,7 +422,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
                 <Checkbox
                   id="remember-me"
                   checked={rememberMe}
-                  onCheckedChange={(checked) => setRememberMe(checked === true)}
+                  onCheckedChange={(checked: boolean | 'indeterminate') => setRememberMe(checked === true)}
                 />
                 <Label htmlFor="remember-me" className="text-sm font-normal cursor-pointer">
                   Ingat saya
@@ -591,7 +647,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
                   <Checkbox
                     id="accept-terms"
                     checked={acceptTerms}
-                    onCheckedChange={(checked) => {
+                    onCheckedChange={(checked: boolean | 'indeterminate') => {
                       setAcceptTerms(checked === true);
                       setRegisterError("");
                     }}
@@ -872,11 +928,12 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
             <div>
-              <div className="flex items-center gap-2 mb-4">
-          <div className="w-8 h-8 bg-gradient-to-br from-[#2ECC71] to-[#F39C12] rounded-lg flex items-center justify-center">
-            <Leaf className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-white">PlantVision</span>
+              <div className="flex items-center mb-4">
+                <img 
+                  src="/images/plantvision-logo.png" 
+                  alt="PlantVision Logo" 
+                  className="h-10 w-auto"
+                />
               </div>
               <p className="text-gray-400">
           Platform IoT & Machine Learning untuk deteksi penyakit daun jeruk
@@ -908,3 +965,4 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
     </div>
   );
 }
+

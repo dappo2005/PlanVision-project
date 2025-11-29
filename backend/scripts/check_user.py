@@ -41,3 +41,4 @@ finally:
         cursor.close()
         conn.close()
         print("\nKoneksi database ditutup.")
+

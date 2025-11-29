@@ -58,9 +58,10 @@ interface Feedback {
 interface AdminFeedbackDashboardProps {
   onLogout: () => void;
   onNavigateToDashboard: () => void;
+  embedded?: boolean; // Jika true, tidak tampilkan Navbar
 }
 
-export default function AdminFeedbackDashboard({ onLogout, onNavigateToDashboard }: AdminFeedbackDashboardProps) {
+export default function AdminFeedbackDashboard({ onLogout, onNavigateToDashboard, embedded = false }: AdminFeedbackDashboardProps) {
   const navigate = useNavigate();
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   
@@ -277,30 +278,15 @@ export default function AdminFeedbackDashboard({ onLogout, onNavigateToDashboard
     </div>;
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
-      {/* Navbar */}
-      <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={onNavigateToDashboard}>
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Dashboard
-              </Button>
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="w-6 h-6 text-white" />
-                </div>
-                <span className="text-gray-900 font-medium">Admin - Feedback Management</span>
-              </div>
-            </div>
-            <Button variant="outline" onClick={onLogout}>Keluar</Button>
-          </div>
-        </div>
-      </header>
+  const containerClass = embedded 
+    ? "bg-gradient-to-br from-purple-50 via-white to-blue-50 rounded-lg"
+    : "min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50";
+  
+  const contentClass = embedded ? "p-6" : "container mx-auto px-4 py-8";
 
-      <div className="container mx-auto px-4 py-8">
+  return (
+    <div className={containerClass}>
+      <div className={contentClass}>
         {/* Stats Cards */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -604,3 +590,4 @@ export default function AdminFeedbackDashboard({ onLogout, onNavigateToDashboard
     </div>
   );
 }
+
