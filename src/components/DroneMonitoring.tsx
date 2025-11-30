@@ -752,7 +752,7 @@ export default function DroneMonitoring({ onNavigateToDashboard }: DroneMonitori
       
       ctx.drawImage(img, 0, 0);
       
-      // Convert to blob
+      // Convert to blob      
       const imageBlob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((blob) => {
           if (blob) {

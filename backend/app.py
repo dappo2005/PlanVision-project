@@ -19,7 +19,14 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS untuk semua routes
+
+# CORS Configuration - allow specific origins in production
+ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', '*').split(',')
+if '*' in ALLOWED_ORIGINS or os.getenv('FLASK_ENV') == 'development':
+    CORS(app)  # Allow all origins in development
+else:
+    CORS(app, resources={r"/*": {"origins": ALLOWED_ORIGINS}})
+
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 
 # Load environment variables
@@ -1555,6 +1562,30 @@ def chat_ai():
             "reply": "Maaf, AI sedang sibuk. Coba lagi nanti.",
             "error": str(e)
         }), 500
+
+
+# --- Health Check Endpoint (untuk deployment platforms) ---
+@app.route('/api/health', methods=['GET'])
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint untuk monitoring deployment"""
+    try:
+        # Test database connection
+        conn = get_db_connection()
+        if conn:
+            conn.close()
+            db_status = "connected"
+        else:
+            db_status = "disconnected"
+    except:
+        db_status = "error"
+    
+    return jsonify({
+        "status": "healthy",
+        "database": db_status,
+        "model_loaded": MODEL is not None,
+        "timestamp": datetime.now().isoformat()
+    }), 200
 
 
 # --- Menjalankan Aplikasi ---
