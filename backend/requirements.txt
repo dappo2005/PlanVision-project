@@ -8,4 +8,5 @@ tensorflow==2.15.0
 werkzeug
 python-dotenv
 google-generativeai
+openai
 protobuf<5,>=3.20.3

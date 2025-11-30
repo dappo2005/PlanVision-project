@@ -31,94 +31,11 @@ interface NewsArticle {
   isRealNews?: boolean; // Flag untuk membedakan berita real vs lokal
 }
 
-const newsData: NewsArticle[] = [
-  {
-    id: "1",
-    title: "Teknologi AI Meningkatkan Deteksi Penyakit Citrus Greening Hingga 95%",
-    excerpt: "Penelitian terbaru menunjukkan bahwa kombinasi machine learning dan sensor IoT dapat mendeteksi Huanglongbing lebih awal, memberikan waktu lebih banyak untuk penanganan.",
-    category: "teknologi",
-    date: "3 November 2024",
-    image: "https://images.unsplash.com/photo-1642519561465-d9c699d2dddd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    author: "Dr. Ahmad Suryanto",
-    readTime: "5 menit"
-  },
-  {
-    id: "2",
-    title: "Harga Jeruk Lokal Naik 30% Menjelang Musim Panen Raya",
-    excerpt: "Petani jeruk di Kabupaten Batu optimis dengan kenaikan harga yang mencapai Rp 8.000-10.000 per kg di pasar lokal. Permintaan ekspor juga meningkat signifikan.",
-    category: "pasar",
-    date: "1 November 2024",
-    image: "https://images.unsplash.com/photo-1741012253484-43b5b9b99491?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    author: "Budi Hartono",
-    readTime: "4 menit"
-  },
-  {
-    id: "3",
-    title: "Metode Pangkas Santai Tingkatkan Produktivitas Jeruk Hingga 40%",
-    excerpt: "Teknik pemangkasan baru yang dikembangkan IPB University terbukti meningkatkan jumlah buah per pohon tanpa mengurangi kualitas. Metode ini lebih hemat tenaga dan waktu.",
-    category: "budidaya",
-    date: "30 Oktober 2024",
-    image: "https://images.unsplash.com/photo-1730810618606-9a3f016d826d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    author: "Prof. Siti Aminah",
-    readTime: "6 menit"
-  },
-  {
-    id: "4",
-    title: "Penemuan Varietas Jeruk Tahan HLB dari Hasil Penelitian 10 Tahun",
-    excerpt: "BPTP Jawa Timur berhasil mengembangkan varietas jeruk baru yang memiliki ketahanan tinggi terhadap penyakit Huanglongbing (HLB) yang selama ini menjadi momok petani.",
-    category: "penelitian",
-    date: "28 Oktober 2024",
-    image: "https://images.unsplash.com/photo-1741012253484-43b5b9b99491?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    author: "Dr. Agus Wijaya",
-    readTime: "7 menit"
-  },
-  {
-    id: "5",
-    title: "Sensor IoT Bantu Petani Monitoring Kelembaban Tanah Real-Time",
-    excerpt: "Implementasi sensor kelembaban tanah berbasis IoT di kebun jeruk Batu membantu petani menghemat air hingga 35% dan meningkatkan efisiensi pemupukan.",
-    category: "teknologi",
-    date: "26 Oktober 2024",
-    image: "https://images.unsplash.com/photo-1642519561465-d9c699d2dddd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    author: "Ir. Andi Prasetyo",
-    readTime: "5 menit"
-  },
-  {
-    id: "6",
-    title: "Ekspor Jeruk Indonesia ke Jepang Meningkat 50% di Kuartal III 2024",
-    excerpt: "Kementerian Pertanian mencatat peningkatan signifikan ekspor jeruk premium ke pasar Jepang berkat peningkatan kualitas dan sertifikasi GAP.",
-    category: "pasar",
-    date: "25 Oktober 2024",
-    image: "https://images.unsplash.com/photo-1741012253484-43b5b9b99491?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    author: "Maya Kusuma",
-    readTime: "4 menit"
-  },
-  {
-    id: "7",
-    title: "Pupuk Organik Kombinasi Kompos-Biochar Tingkatkan Hasil Panen 25%",
-    excerpt: "Penelitian kolaboratif Universitas Brawijaya dan BPTP menunjukkan bahwa kombinasi kompos dan biochar dapat meningkatkan kesuburan tanah secara berkelanjutan.",
-    category: "budidaya",
-    date: "23 Oktober 2024",
-    image: "https://images.unsplash.com/photo-1730810618606-9a3f016d826d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    author: "Dr. Bambang Sutrisno",
-    readTime: "6 menit"
-  },
-  {
-    id: "8",
-    title: "Drone Semprot Pestisida Hemat Waktu 70% dan Lebih Presisi",
-    excerpt: "Penggunaan drone untuk penyemprotan pestisida di perkebunan jeruk skala besar terbukti lebih efisien, presisi, dan mengurangi paparan kimia pada pekerja.",
-    category: "teknologi",
-    date: "20 Oktober 2024",
-    image: "https://images.unsplash.com/photo-1642519561465-d9c699d2dddd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    author: "Dedi Kurniawan",
-    readTime: "5 menit"
-  }
-];
-
 export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>("semua");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
-  const [newsList, setNewsList] = useState<NewsArticle[]>(newsData);
+  const [newsList, setNewsList] = useState<NewsArticle[]>([]);
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [editingArticleId, setEditingArticleId] = useState<string | null>(null);
@@ -140,18 +57,70 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
     }
   }, []);
 
-  // Fetch real news from internet
+  // Fetch news from backend API
   React.useEffect(() => {
-    fetchRealNews();
-  }, []);
+    fetchNewsFromBackend();
+  }, [selectedCategory]);
 
+  const fetchNewsFromBackend = async () => {
+    setIsLoadingNews(true);
+    setNewsError(null);
+    
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const categoryParam = selectedCategory !== 'semua' ? `?category=${selectedCategory}` : '';
+      
+      const response = await fetch(`${API_URL}/api/news${categoryParam}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.news && Array.isArray(data.news)) {
+          // Map backend data ke format NewsArticle
+          const mappedNews: NewsArticle[] = data.news.map((item: any) => ({
+            id: item.news_id.toString(),
+            title: item.title,
+            excerpt: item.excerpt,
+            category: item.category,
+            date: new Date(item.created_at).toLocaleDateString('id-ID', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            }),
+            image: item.image_url,
+            author: item.author,
+            readTime: item.read_time,
+            content: item.content,
+            url: item.external_url,
+            isRealNews: false
+          }));
+          
+          setNewsList(mappedNews);
+          setIsLoadingNews(false);
+        }
+      } else {
+        throw new Error('Failed to fetch news from backend');
+      }
+    } catch (error) {
+      console.error('Error fetching news from backend:', error);
+      setNewsError("Tidak dapat memuat berita dari server. Pastikan backend berjalan.");
+      setNewsList([]);
+      setIsLoadingNews(false);
+    }
+  };
+
+  // Fetch real news from external sources (optional, can be triggered manually)
   const fetchRealNews = async () => {
     setIsLoadingNews(true);
     setNewsError(null);
     
     try {
       // Menggunakan API berita Indonesia yang gratis
-      // Mencoba beberapa sumber berita
       const sources = [
         { url: 'https://api-berita-indonesia.vercel.app/cnn/terbaru', name: 'CNN' },
         { url: 'https://api-berita-indonesia.vercel.app/antaranews/terbaru', name: 'Antara' },
@@ -237,21 +206,18 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
         }
       }
 
-      // Jika berhasil mendapatkan berita, gabungkan dengan berita lokal
+      // Jika berhasil mendapatkan berita eksternal
       if (allNews.length > 0) {
-        // Gabungkan: berita real di atas, lalu berita lokal
-        setNewsList([...allNews, ...newsData]);
+        setNewsList(allNews);
         toast.success(`Berhasil memuat ${allNews.length} berita terbaru dari internet`);
       } else {
-        // Jika gagal, tetap gunakan berita lokal
-        setNewsList(newsData);
-        setNewsError("Tidak dapat memuat berita dari internet, menampilkan berita lokal");
+        setNewsError("Tidak dapat memuat berita dari sumber eksternal");
+        toast.error("Gagal memuat berita eksternal");
       }
     } catch (error) {
       console.error('Error fetching real news:', error);
       setNewsError("Gagal memuat berita dari internet");
-      // Tetap tampilkan berita lokal jika error
-      setNewsList(newsData);
+      toast.error("Gagal memuat berita eksternal");
     } finally {
       setIsLoadingNews(false);
     }
@@ -305,7 +271,7 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
     }
   };
 
-  const handleCreateArticle = (e: React.FormEvent) => {
+  const handleCreateArticle = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validation
@@ -323,42 +289,59 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
       return;
     }
 
-    // Create new article
-    const article: NewsArticle = {
-      id: Date.now().toString(),
-      title: newArticle.title,
-      excerpt: newArticle.excerpt,
-      category: newArticle.category,
-      date: new Date().toLocaleDateString('id-ID', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      }),
-      image: newArticle.image,
-      author: newArticle.author,
-      readTime: newArticle.readTime,
-      content: newArticle.content
-    };
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      
+      const response = await fetch(`${API_URL}/api/news`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: newArticle.title,
+          excerpt: newArticle.excerpt,
+          content: newArticle.content,
+          category: newArticle.category,
+          image_url: newArticle.image,
+          author: newArticle.author,
+          read_time: newArticle.readTime,
+          created_by: user.user_id
+        }),
+      });
 
-    // Add to news list (prepend to show at top)
-    setNewsList([article, ...newsList]);
-    
-    // Reset form
-    setNewArticle({
-      title: "",
-      excerpt: "",
-      category: "teknologi",
-      content: "",
-      image: "",
-      author: "",
-      readTime: "5 menit"
-    });
-    setImagePreview(null);
-    setShowCreateDialog(false);
-    
-    toast.success("Berita berhasil dibuat", {
-      description: "Berita baru telah ditambahkan"
-    });
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Reset form
+        setNewArticle({
+          title: "",
+          excerpt: "",
+          category: "teknologi",
+          content: "",
+          image: "",
+          author: "",
+          readTime: "5 menit"
+        });
+        setImagePreview(null);
+        setShowCreateDialog(false);
+        
+        // Refresh news list
+        await fetchNewsFromBackend();
+        
+        toast.success("Berita berhasil dibuat", {
+          description: "Berita baru telah ditambahkan ke database"
+        });
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create news');
+      }
+    } catch (error: any) {
+      console.error('Error creating news:', error);
+      toast.error("Gagal membuat berita", {
+        description: error.message || "Terjadi kesalahan saat membuat berita"
+      });
+    }
   };
 
   const handleDialogClose = () => {
@@ -391,7 +374,7 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
     setShowEditDialog(true);
   };
 
-  const handleUpdateArticle = (e: React.FormEvent) => {
+  const handleUpdateArticle = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!editingArticleId) return;
@@ -411,53 +394,93 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
       return;
     }
 
-    // Update article
-    const updatedArticle: NewsArticle = {
-      id: editingArticleId,
-      title: newArticle.title,
-      excerpt: newArticle.excerpt,
-      category: newArticle.category,
-      date: newsList.find(a => a.id === editingArticleId)?.date || new Date().toLocaleDateString('id-ID', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      }),
-      image: newArticle.image,
-      author: newArticle.author,
-      readTime: newArticle.readTime,
-      content: newArticle.content
-    };
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      
+      const response = await fetch(`${API_URL}/api/news/${editingArticleId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: newArticle.title,
+          excerpt: newArticle.excerpt,
+          content: newArticle.content,
+          category: newArticle.category,
+          image_url: newArticle.image,
+          author: newArticle.author,
+          read_time: newArticle.readTime,
+          admin_id: user.user_id
+        }),
+      });
 
-    // Update news list
-    setNewsList(newsList.map(article => 
-      article.id === editingArticleId ? updatedArticle : article
-    ));
-    
-    // Reset form
-    setNewArticle({
-      title: "",
-      excerpt: "",
-      category: "teknologi",
-      content: "",
-      image: "",
-      author: "",
-      readTime: "5 menit"
-    });
-    setImagePreview(null);
-    setEditingArticleId(null);
-    setShowEditDialog(false);
-    
-    toast.success("Berita berhasil diperbarui", {
-      description: "Perubahan telah disimpan"
-    });
+      if (response.ok) {
+        // Reset form
+        setNewArticle({
+          title: "",
+          excerpt: "",
+          category: "teknologi",
+          content: "",
+          image: "",
+          author: "",
+          readTime: "5 menit"
+        });
+        setImagePreview(null);
+        setEditingArticleId(null);
+        setShowEditDialog(false);
+        
+        // Refresh news list
+        await fetchNewsFromBackend();
+        
+        toast.success("Berita berhasil diperbarui", {
+          description: "Perubahan telah disimpan ke database"
+        });
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update news');
+      }
+    } catch (error: any) {
+      console.error('Error updating news:', error);
+      toast.error("Gagal memperbarui berita", {
+        description: error.message || "Terjadi kesalahan saat memperbarui berita"
+      });
+    }
   };
 
-  const handleDeleteArticle = (articleId: string) => {
+  const handleDeleteArticle = async (articleId: string) => {
     if (window.confirm("Apakah Anda yakin ingin menghapus berita ini?")) {
-      setNewsList(newsList.filter(article => article.id !== articleId));
-      toast.success("Berita berhasil dihapus", {
-        description: "Berita telah dihapus dari daftar"
-      });
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        const response = await fetch(`${API_URL}/api/news/${articleId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            admin_id: user.user_id
+          }),
+        });
+
+        if (response.ok) {
+          // Refresh news list
+          await fetchNewsFromBackend();
+          
+          toast.success("Berita berhasil dihapus", {
+            description: "Berita telah dihapus dari database"
+          });
+        } else {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to delete news');
+        }
+      } catch (error: any) {
+        console.error('Error deleting news:', error);
+        toast.error("Gagal menghapus berita", {
+          description: error.message || "Terjadi kesalahan saat menghapus berita"
+        });
+      }
     }
   };
 
@@ -531,28 +554,9 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
             <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-6">
               Informasi terbaru seputar teknologi, budidaya, pasar, dan penelitian di industri jeruk Indonesia
             </p>
-            <div className="flex items-center justify-center gap-3 flex-wrap">
-              {/* Tombol Refresh Berita */}
-              <Button 
-                onClick={fetchRealNews}
-                variant="outline"
-                disabled={isLoadingNews}
-                className="border-[#2ECC71] text-[#2ECC71] hover:bg-[#2ECC71] hover:text-white"
-              >
-                {isLoadingNews ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-[#2ECC71] border-t-transparent rounded-full animate-spin mr-2" />
-                    Memuat...
-                  </>
-                ) : (
-                  <>
-                    <Newspaper className="w-4 h-4 mr-2" />
-                    Refresh Berita
-                  </>
-                )}
-              </Button>
-              {/* Tombol Buat Berita - Hanya untuk Superadmin */}
-              {isAdmin && (
+            {/* Tombol Buat Berita - Hanya untuk Superadmin */}
+            {isAdmin && (
+              <div className="flex items-center justify-center">
                 <Button 
                   onClick={() => setShowCreateDialog(true)}
                   className="bg-gradient-to-r from-[#2ECC71] to-[#F39C12] hover:from-[#27AE60] hover:to-[#E67E22] text-white shadow-lg"
@@ -561,8 +565,8 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
                   <Plus className="w-5 h-5 mr-2" />
                   Buat Berita Baru
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
             {/* Error Message */}
             {newsError && (
               <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 text-sm max-w-2xl mx-auto">
@@ -573,7 +577,7 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
 
           {/* Filter Tabs */}
           <Tabs defaultValue="semua" className="mb-8" onValueChange={setSelectedCategory}>
-            <TabsList className="grid w-full md:w-auto grid-cols-5 mb-8">
+            <TabsList className="flex w-full mb-6 gap-2 overflow-x-auto no-scrollbar">
               <TabsTrigger value="semua" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#2ECC71] data-[state=active]:to-[#27AE60] data-[state=active]:text-white">
                 Semua
               </TabsTrigger>
@@ -592,8 +596,29 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
             </TabsList>
 
             <TabsContent value={selectedCategory} className="mt-0">
+              {/* Loading State */}
+              {isLoadingNews && (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2ECC71] mx-auto mb-4"></div>
+                  <p className="text-gray-600">Memuat berita...</p>
+                </div>
+              )}
+
+              {/* Empty State */}
+              {!isLoadingNews && filteredNews.length === 0 && (
+                <Card className="p-12 text-center">
+                  <Newspaper className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">Belum Ada Berita</h3>
+                  <p className="text-gray-500">
+                    {selectedCategory === 'semua' 
+                      ? 'Belum ada berita yang tersedia. Admin dapat menambahkan berita baru menggunakan tombol "Buat Berita Baru" di atas.'
+                      : `Belum ada berita di kategori ${selectedCategory}.`}
+                  </p>
+                </Card>
+              )}
+
               {/* Featured News */}
-              {filteredNews.length > 0 && (
+              {!isLoadingNews && filteredNews.length > 0 && (
                 <Card className="mb-8 overflow-hidden hover:shadow-xl transition-shadow">
                   <div className="grid md:grid-cols-2 gap-0">
                     <div className="relative h-64 md:h-auto">
@@ -675,8 +700,9 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
               )}
 
               {/* News Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredNews.slice(1).map((article) => (
+              {!isLoadingNews && filteredNews.length > 1 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredNews.slice(1).map((article) => (
                   <Card key={article.id} className="overflow-hidden hover:shadow-xl transition-all hover:-translate-y-1">
                     <div className="relative h-48">
                       <ImageWithFallback 
@@ -753,8 +779,9 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </TabsContent>
           </Tabs>
 
@@ -764,7 +791,7 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
               handleDialogClose();
             }
           }}>
-            <DialogContent className="sm:max-w-lg max-h-[90vh] h-[90vh] p-0 flex flex-col [&>button]:z-10">
+            <DialogContent className="sm:max-w-lg max-h-[90vh] h-[90vh] p-0 flex flex-col [&>button]:z-10 overflow-visible">
               <DialogHeader className="flex-shrink-0 px-4 pt-4 pb-3 border-b">
                 <DialogTitle className="text-lg flex items-center gap-2">
                   <Plus className="w-4 h-4 text-[#2ECC71]" />
@@ -775,8 +802,8 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
                 </DialogDescription>
               </DialogHeader>
 
-              <form id="create-news-form" onSubmit={handleCreateArticle} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-4" style={{ maxHeight: 'calc(90vh - 180px)' }}>
+              <form id="create-news-form" onSubmit={handleCreateArticle} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4" style={{ maxHeight: 'calc(90vh - 180px)' }}>
                   {/* Title */}
                 <div className="space-y-2">
                   <Label htmlFor="title">Judul Berita *</Label>
@@ -793,22 +820,23 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="category">Kategori *</Label>
-                    <Select
+                    <select
+                      id="category"
                       value={newArticle.category}
-                      onValueChange={(value: "teknologi" | "budidaya" | "pasar" | "penelitian") =>
-                        setNewArticle({ ...newArticle, category: value })
+                      onChange={(e) =>
+                        setNewArticle({
+                          ...newArticle,
+                          category: e.target.value as "teknologi" | "budidaya" | "pasar" | "penelitian",
+                        })
                       }
+                      className="border-gray-300 dark:border-gray-600 focus-visible:border-blue-500 focus-visible:ring-blue-500/20 rounded-lg border bg-white dark:bg-gray-800 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 w-full shadow-sm"
+                      required
                     >
-                      <SelectTrigger id="category">
-                        <SelectValue placeholder="Pilih kategori" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="teknologi">Teknologi</SelectItem>
-                        <SelectItem value="budidaya">Budidaya</SelectItem>
-                        <SelectItem value="pasar">Pasar</SelectItem>
-                        <SelectItem value="penelitian">Penelitian</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      <option value="teknologi">Teknologi</option>
+                      <option value="budidaya">Budidaya</option>
+                      <option value="pasar">Pasar</option>
+                      <option value="penelitian">Penelitian</option>
+                    </select>
                   </div>
 
                   <div className="space-y-2">
@@ -935,7 +963,7 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
               handleEditDialogClose();
             }
           }}>
-            <DialogContent className="sm:max-w-lg max-h-[90vh] h-[90vh] p-0 flex flex-col [&>button]:z-10">
+            <DialogContent className="sm:max-w-lg max-h-[90vh] h-[90vh] p-0 flex flex-col [&>button]:z-10 overflow-visible">
               <DialogHeader className="flex-shrink-0 px-4 pt-4 pb-3 border-b">
                 <DialogTitle className="text-lg flex items-center gap-2">
                   <Edit className="w-4 h-4 text-blue-600" />
@@ -946,8 +974,8 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
                 </DialogDescription>
               </DialogHeader>
 
-              <form id="edit-news-form" onSubmit={handleUpdateArticle} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-4" style={{ maxHeight: 'calc(90vh - 180px)' }}>
+              <form id="edit-news-form" onSubmit={handleUpdateArticle} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4" style={{ maxHeight: 'calc(90vh - 180px)' }}>
                   {/* Title */}
                   <div className="space-y-2">
                     <Label htmlFor="edit-title">Judul Berita *</Label>
@@ -964,22 +992,23 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="edit-category">Kategori *</Label>
-                      <Select
+                      <select
+                        id="edit-category"
                         value={newArticle.category}
-                        onValueChange={(value: "teknologi" | "budidaya" | "pasar" | "penelitian") =>
-                          setNewArticle({ ...newArticle, category: value })
+                        onChange={(e) =>
+                          setNewArticle({
+                            ...newArticle,
+                            category: e.target.value as "teknologi" | "budidaya" | "pasar" | "penelitian",
+                          })
                         }
+                        className="border-gray-300 dark:border-gray-600 focus-visible:border-blue-500 focus-visible:ring-blue-500/20 rounded-lg border bg-white dark:bg-gray-800 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 w-full shadow-sm"
+                        required
                       >
-                        <SelectTrigger id="edit-category">
-                          <SelectValue placeholder="Pilih kategori" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="teknologi">Teknologi</SelectItem>
-                          <SelectItem value="budidaya">Budidaya</SelectItem>
-                          <SelectItem value="pasar">Pasar</SelectItem>
-                          <SelectItem value="penelitian">Penelitian</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <option value="teknologi">Teknologi</option>
+                        <option value="budidaya">Budidaya</option>
+                        <option value="pasar">Pasar</option>
+                        <option value="penelitian">Penelitian</option>
+                      </select>
                     </div>
 
                     <div className="space-y-2">
