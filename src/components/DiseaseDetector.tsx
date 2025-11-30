@@ -7,7 +7,7 @@ import { Badge } from "./ui/badge";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 
-const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000"
 
 interface DetectionResult {
   disease: string;

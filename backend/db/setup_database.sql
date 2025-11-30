@@ -10,7 +10,7 @@ DROP TABLE IF EXISTS DetectionHistory;
 -- Create or recreate the User table
 DROP TABLE IF EXISTS User;
 CREATE TABLE User (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT AUTO_INCREMENT PRIMARY KEY,
     nama VARCHAR(100) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
     username VARCHAR(50) NOT NULL UNIQUE,
@@ -36,6 +36,6 @@ CREATE TABLE DetectionHistory (
     treatment TEXT,
     prevention TEXT,
     detection_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES User(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE,
     INDEX idx_user_date (user_id, detection_date DESC)
 );

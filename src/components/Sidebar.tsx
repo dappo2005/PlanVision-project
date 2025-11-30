@@ -19,6 +19,7 @@ import {
   BarChart3,
   LogOut,
   X,
+  History,
 } from "lucide-react";
 import React from "react";
 
@@ -118,6 +119,12 @@ export default function Sidebar({
       icon: <Camera className="w-5 h-5" />,
       onClick: onNavigateToDetector,
       path: "/disease-detector",
+    },
+    {
+      label: "Riwayat Deteksi",
+      icon: <History className="w-5 h-5" />,
+      onClick: () => navigate('/detection-history'),
+      path: "/detection-history",
     },
     {
       label: "Chat AI",
@@ -236,7 +243,7 @@ export default function Sidebar({
               <div className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0"></div>
               {isHovered && (
                 <span className="text-xs font-medium text-purple-700 whitespace-nowrap">
-                  Admin
+                  Superadmin
                 </span>
               )}
             </>
@@ -336,7 +343,7 @@ export default function Sidebar({
             {isSuperadmin ? (
               <>
                 <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                <span className="text-xs font-medium text-purple-700">Administrator</span>
+                <span className="text-xs font-medium text-purple-700">Superadmin</span>
               </>
             ) : (
               <>

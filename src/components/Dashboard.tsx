@@ -30,6 +30,7 @@ import {
   Users,
   Target,
   Clock,
+  History,
 } from "lucide-react";
 import {
   BarChart,
@@ -115,6 +116,7 @@ export default function Dashboard({
   onNavigateToFeedback,
   onNavigateToContact,
 }: DashboardProps) {
+  const navigate = useNavigate();
   const [userRole, setUserRole] = useState<string>('user');
 
   // Check user role
@@ -580,6 +582,16 @@ export default function Dashboard({
               <Camera className="w-6 h-6 relative z-10 group-hover:animate-bounce" />
               <span className="relative z-10 font-semibold">Deteksi Penyakit</span>
               <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-[#2ECC71]/20 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            </Button>
+            <Button
+              onClick={() => navigate('/detection-history')}
+              variant="outline"
+              className="h-24 flex flex-col gap-2 bg-gradient-to-br from-indigo-500/10 to-indigo-600/10 border-2 border-indigo-500/30 hover:bg-gradient-to-br hover:from-indigo-500 hover:to-indigo-600 hover:text-white hover:border-indigo-500 transition-all duration-300 hover:scale-110 hover:shadow-xl relative overflow-hidden group"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-indigo-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <History className="w-6 h-6 relative z-10 group-hover:animate-bounce" />
+              <span className="relative z-10 font-semibold">Riwayat Deteksi</span>
+              <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-indigo-500/20 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </Button>
             <Button
               onClick={onNavigateToMonitoring}

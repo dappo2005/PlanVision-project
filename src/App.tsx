@@ -11,6 +11,7 @@ import FeedbackGuest from "./components/FeedbackGuest";
 import MyFeedbacks from "./components/MyFeedbacks";
 import AdminFeedbackDashboard from "./components/admin/AdminFeedbackDashboard";
 import AdminDashboard from "./components/admin/AdminDashboard";
+import DetectionHistory from "./components/DetectionHistory";
 import Contact from "./components/Contact";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
@@ -265,6 +266,16 @@ export default function App() {
                 onLogout={handleLogout}
                 onNavigateToDashboard={() => navigate("/dashboard")}
               />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Detection History (User) */}
+        <Route 
+          path="/detection-history" 
+          element={
+            <ProtectedRoute>
+              <DetectionHistory />
             </ProtectedRoute>
           } 
         />
