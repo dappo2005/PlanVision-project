@@ -77,19 +77,12 @@ if os.getenv('SKIP_MODEL_LOAD') == '1':
 else:
     load_model_at_startup()
 
-# --- KONFIGURASI GEMINI (Google AI Studio) ---
+# --- KONFIGURASI AI CHAT (Google Gemini via REST API) ---
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-GENAI_CONFIGURED = False
-PLANT_CHAT_MODEL = None
-try:
-    if GEMINI_API_KEY:
-        genai.configure(api_key=GEMINI_API_KEY)
-        GENAI_CONFIGURED = True
-        print("[Gemini] API key berhasil dikonfigurasi")
-    else:
-        print("[Gemini] Peringatan: GEMINI_API_KEY tidak ditemukan di environment/.env")
-except Exception as e:
-    print(f"[Gemini] Gagal inisialisasi: {e}")
+if GEMINI_API_KEY:
+    print("[Gemini] API key berhasil dikonfigurasi")
+else:
+    print("[Gemini] Peringatan: GEMINI_API_KEY tidak ditemukan di environment/.env")
 
 # --- KONFIGURASI KONEKSI DATABASE ---
 # Bisa dikonfigurasi melalui environment variables agar konsisten dengan DB Anda
@@ -1057,94 +1050,83 @@ def get_all_feedbacks():
 
 
 # --- API GET FEEDBACK STATISTICS (Admin) ---
-@app.route('/api/admin/feedbacks/stats', methods=['GET'])
-def get_feedback_stats():
-    """
-    API untuk admin melihat statistik feedback
-    Returns: Statistics summary
-    """
-    conn = None
-    cursor = None
-    
+@app.route('/api/chat', methods=['POST'])
+def chat_ai():
     try:
-        admin_id = request.args.get('admin_id')
-        if not admin_id or not verify_superadmin(admin_id):
-            return jsonify({"error": "Unauthorized. Superadmin access required"}), 403
+        data = request.json
+        user_message = data.get('message')
         
-        conn = get_db_connection()
-        if conn is None:
-            return jsonify({"error": "Koneksi database gagal"}), 500
+        if not user_message:
+            return jsonify({"error": "Pesan tidak boleh kosong"}), 400
+
+        if not GEMINI_API_KEY:
+            return jsonify({"error": "Chat AI belum dikonfigurasi. Set GEMINI_API_KEY di .env"}), 500
+
+        system_prompt = (
+            "Anda adalah PlantVision AI, asisten agronomi untuk pertanian jeruk. "
+            "Jawab dalam Bahasa Indonesia dengan singkat, praktis, dan sopan. "
+            "Fokus pada penyakit daun jeruk: Black spot, Canker, Greening, Melanose, Healthy."
+        )
+
+        # Gunakan Google Generative AI REST API dengan endpoint v1 yang lebih stabil
+        import requests as req
         
-        cursor = conn.cursor(dictionary=True)
+        # Coba berbagai kombinasi endpoint dan model
+        endpoints = [
+            ("v1", "gemini-1.5-flash"),
+            ("v1beta", "gemini-1.5-flash"),
+            ("v1beta", "gemini-pro"),
+            ("v1", "gemini-pro"),
+        ]
         
-        # Total feedbacks
-        cursor.execute("SELECT COUNT(*) as total FROM Feedback")
-        total_result = cursor.fetchone()
-        total: int = total_result['total'] if total_result else 0  # type: ignore
+        prompt_text = f"{system_prompt}\n\nPertanyaan: {user_message}"
+        payload = {
+            "contents": [{
+                "parts": [{"text": prompt_text}]
+            }]
+        }
         
-        # By status
-        cursor.execute("""
-            SELECT status, COUNT(*) as count
-            FROM Feedback
-            GROUP BY status
-        """)
-        by_status = {row['status']: row['count'] for row in cursor.fetchall()}  # type: ignore
+        reply_text = None
+        last_error = None
         
-        # By category
-        cursor.execute("""
-            SELECT category, COUNT(*) as count
-            FROM Feedback
-            GROUP BY category
-        """)
-        by_category = {row['category']: row['count'] for row in cursor.fetchall()}  # type: ignore
+        for version, model_name in endpoints:
+            try:
+                api_url = f"https://generativelanguage.googleapis.com/{version}/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+                resp = req.post(api_url, json=payload, timeout=30)
+                resp.raise_for_status()
+                result = resp.json()
+                reply_text = result['candidates'][0]['content']['parts'][0]['text']
+                print(f"[Chat AI] Berhasil menggunakan {version}/models/{model_name}")
+                break
+            except Exception as e:
+                last_error = e
+                print(f"[Chat AI] Gagal {version}/{model_name}: {str(e)[:100]}")
+                continue
         
-        # By rating
-        cursor.execute("""
-            SELECT rating, COUNT(*) as count
-            FROM Feedback
-            GROUP BY rating
-            ORDER BY rating DESC
-        """)
-        by_rating = {row['rating']: row['count'] for row in cursor.fetchall()}  # type: ignore
-        
-        # Average rating
-        cursor.execute("SELECT AVG(rating) as avg_rating FROM Feedback")
-        avg_result = cursor.fetchone()
-        avg_rating = float(avg_result['avg_rating']) if avg_result and avg_result['avg_rating'] else 0  # type: ignore
-        
-        # Recent count (last 7 days)
-        cursor.execute("""
-            SELECT COUNT(*) as recent_count
-            FROM Feedback
-            WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-        """)
-        recent_result = cursor.fetchone()
-        recent_count: int = recent_result['recent_count'] if recent_result else 0  # type: ignore
-        
-        # By user role
-        cursor.execute("""
-            SELECT user_role, COUNT(*) as count
-            FROM Feedback
-            GROUP BY user_role
-        """)
-        by_user_role = {row['user_role']: row['count'] for row in cursor.fetchall()}  # type: ignore
-        
+        if not reply_text:
+            error_msg = str(last_error)
+            if "403" in error_msg or "401" in error_msg:
+                raise Exception("API key tidak valid atau tidak memiliki akses. Periksa https://aistudio.google.com/apikey")
+            elif "404" in error_msg:
+                raise Exception("Model tidak tersedia untuk API key ini. Coba buat API key baru di Google AI Studio")
+            raise last_error or Exception("Semua endpoint Gemini gagal")
+
         return jsonify({
-            "total": total,
-            "by_status": by_status,
-            "by_category": by_category,
-            "by_rating": by_rating,
-            "by_user_role": by_user_role,
-            "avg_rating": round(avg_rating, 2),
-            "recent_count": recent_count
+            "reply": reply_text,
+            "timestamp": datetime.now().isoformat()
         }), 200
-        
+
     except Exception as e:
-        print(f"[Feedback Stats] Error: {e}")
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if cursor: cursor.close()
-        if conn and conn.is_connected(): conn.close()
+        print(f"[Chat AI Error]: {e}")
+        return jsonify({
+            "reply": "Maaf, terjadi kesalahan saat menghubungi AI. Pastikan API key valid dan model tersedia.",
+            "error": str(e)
+        }), 500
+        return jsonify({
+            "reply": "Maaf, terjadi kesalahan koneksi. Silakan coba lagi.",
+            "error": str(e)
+        }), 500
+        
 
 
 # --- API UPDATE FEEDBACK STATUS (Admin) ---
@@ -1593,89 +1575,308 @@ def get_detections_stats():
         if conn and conn.is_connected(): conn.close()
 
 
-# --- API CHAT AI (Gemini) ---
-# --- KONFIGURASI GOOGLE GEMINI AI ---
-# GANTI DENGAN API KEY ANDA DARI GOOGLE AI STUDIO
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'AIzaSyAqUNRvT9-I72J46vvyPMfvxGhGULLkMOs')
+# ===================================================================
+# NEWS API (Berita/Artikel)
+# ===================================================================
 
-genai.configure(api_key=GEMINI_API_KEY)
+@app.route('/api/news', methods=['GET'])
+def get_all_news():
+    """
+    API untuk mendapatkan semua berita dengan filter
+    Query params: ?category=teknologi&limit=20&published_only=true
+    Returns: {total, news[]}
+    """
+    conn = None
+    cursor = None
+    
+    try:
+        category = request.args.get('category')  # teknologi, budidaya, pasar, penelitian
+        limit = int(request.args.get('limit', 20))
+        published_only = request.args.get('published_only', 'true').lower() == 'true'
+        
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        
+        cursor = conn.cursor(dictionary=True)
+        
+        # Build query
+        query = "SELECT * FROM News WHERE 1=1"
+        params = []
+        
+        if published_only:
+            query += " AND is_published = 1"
+        
+        if category:
+            query += " AND category = %s"
+            params.append(category)
+        
+        query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        news_list = cursor.fetchall()
+        
+        result = []
+        for news in news_list:
+            news_data: dict = news  # type: ignore
+            result.append({
+                "news_id": news_data['news_id'],
+                "title": news_data['title'],
+                "excerpt": news_data['excerpt'],
+                "content": news_data['content'],
+                "category": news_data['category'],
+                "image_url": news_data['image_url'],
+                "external_url": news_data['external_url'],
+                "author": news_data['author'],
+                "read_time": news_data['read_time'],
+                "is_published": news_data['is_published'],
+                "created_by": news_data['created_by'],
+                "created_at": news_data['created_at'].isoformat() if news_data['created_at'] else None,
+                "updated_at": news_data['updated_at'].isoformat() if news_data['updated_at'] else None
+            })
+        
+        return jsonify({
+            "total": len(result),
+            "news": result
+        }), 200
+        
+    except Exception as e:
+        print(f"[Get News] Error: {e}")
+        return jsonify({
+            "total": 0,
+            "news": [],
+            "error": str(e)
+        }), 200
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
 
-# Konfigurasi model (Instruksi agar AI berperan sebagai ahli pertanian)
-generation_config = {
-  "temperature": 0.7,
-  "top_p": 0.95,
-  "top_k": 40,
-  "max_output_tokens": 1024,
-}
 
-# System Instruction: Memberi karakter pada AI agar fokus ke Jeruk
-system_instruction = """
-Kamu adalah PlantVision AI, asisten ahli pertanian yang spesifik membantu petani jeruk.
-Tugasmu adalah menjawab pertanyaan seputar:
-1. Penyakit pada tanaman jeruk (Gejala, Penanganan, Pencegahan).
-2. Cara budidaya jeruk (Pemupukan, Irigasi, Pemangkasan).
-3. Hama pada tanaman jeruk.
+@app.route('/api/news/<int:news_id>', methods=['GET'])
+def get_news_detail(news_id):
+    """
+    API untuk mendapatkan detail berita berdasarkan ID
+    Returns: Single news object
+    """
+    conn = None
+    cursor = None
+    
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM News WHERE news_id = %s", (news_id,))
+        news = cursor.fetchone()
+        
+        if not news:
+            return jsonify({"error": "Berita tidak ditemukan"}), 404
+        
+        news_data: dict = news  # type: ignore
+        return jsonify({
+            "news_id": news_data['news_id'],
+            "title": news_data['title'],
+            "excerpt": news_data['excerpt'],
+            "content": news_data['content'],
+            "category": news_data['category'],
+            "image_url": news_data['image_url'],
+            "external_url": news_data['external_url'],
+            "author": news_data['author'],
+            "read_time": news_data['read_time'],
+            "is_published": news_data['is_published'],
+            "created_by": news_data['created_by'],
+            "created_at": news_data['created_at'].isoformat() if news_data['created_at'] else None,
+            "updated_at": news_data['updated_at'].isoformat() if news_data['updated_at'] else None
+        }), 200
+        
+    except Exception as e:
+        print(f"[Get News Detail] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
 
-Gunakan bahasa yang sopan, jelas, dan mudah dimengerti oleh petani Indonesia.
-Jika ditanya di luar topik pertanian/jeruk, jawab dengan sopan bahwa kamu hanya fokus pada pertanian jeruk.
-Berikan jawaban yang praktis dan bisa langsung diterapkan.
-"""
 
-model = genai.GenerativeModel(
-    model_name="gemini-pro", # Model yang cepat dan hemat
-    generation_config=generation_config, 
-    # system_instruction=system_instruction
-)
-
-# --- API CHAT AI (Integrasi Google Gemini) ---
-# --- UPDATE ENDPOINT CHAT (Lebih Stabil) ---
-@app.route('/api/chat', methods=['POST'])
-def chat_ai():
+@app.route('/api/news', methods=['POST'])
+def create_news():
+    """
+    API untuk membuat berita baru (admin only)
+    Body: {title, excerpt, content, category, image_url, external_url, author, read_time, created_by (admin user_id)}
+    Returns: {news_id, message}
+    """
+    conn = None
+    cursor = None
+    
     try:
         data = request.json
-        user_message = data.get('message')
+        if not data:
+            return jsonify({"error": "Invalid request data"}), 400
         
-        if not user_message:
-            return jsonify({"error": "Pesan tidak boleh kosong"}), 400
-
-        if not GEMINI_API_KEY:
-            return jsonify({"error": "Chat AI belum dikonfigurasi. Set GEMINI_API_KEY di .env"}), 500
-
-        # Langsung pakai REST API (lebih stabil dari SDK)
-        import requests as req
+        # Validate required fields
+        required_fields = ['title', 'content', 'category', 'created_by']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({"error": f"{field} diperlukan"}), 400
         
-        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+        created_by = data.get('created_by')
+        if not verify_superadmin(created_by):
+            return jsonify({"error": "Unauthorized. Hanya superadmin yang dapat membuat berita"}), 403
         
-        system_prompt = (
-            "Anda adalah PlantVision AI, asisten agronomi untuk pertanian jeruk. "
-            "Jawab dalam Bahasa Indonesia dengan singkat, praktis, dan sopan. "
-            "Fokus pada penyakit daun jeruk: Black spot, Canker, Greening, Melanose, Healthy.\n\n"
-            f"Pertanyaan: {user_message}"
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        
+        cursor = conn.cursor()
+        
+        query = """
+            INSERT INTO News (title, excerpt, content, category, image_url, external_url, 
+                            author, read_time, is_published, created_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        values = (
+            data['title'],
+            data.get('excerpt', ''),
+            data['content'],
+            data['category'],
+            data.get('image_url', ''),
+            data.get('external_url', ''),
+            data.get('author', 'Admin'),
+            data.get('read_time', '5 menit'),
+            data.get('is_published', 1),
+            created_by
         )
         
-        payload = {
-            "contents": [{
-                "parts": [{"text": system_prompt}]
-            }]
-        }
-        
-        resp = req.post(api_url, json=payload, timeout=30)
-        resp.raise_for_status()
-        
-        result = resp.json()
-        reply_text = result['candidates'][0]['content']['parts'][0]['text']
+        cursor.execute(query, values)
+        conn.commit()
+        news_id = cursor.lastrowid
         
         return jsonify({
-            "reply": reply_text,
-            "timestamp": datetime.now().isoformat()
-        }), 200
-
+            "success": True,
+            "message": "Berita berhasil dibuat",
+            "news_id": news_id
+        }), 201
+        
     except Exception as e:
-        print(f"[Chat AI Error]: {e}")
+        print(f"[Create News] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+@app.route('/api/news/<int:news_id>', methods=['PUT'])
+def update_news(news_id):
+    """
+    API untuk update berita (admin only)
+    Body: {title?, excerpt?, content?, category?, image_url?, external_url?, author?, read_time?, is_published?, admin_id}
+    Returns: {message}
+    """
+    conn = None
+    cursor = None
+    
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "Invalid request data"}), 400
+        
+        admin_id = data.get('admin_id')
+        if not admin_id or not verify_superadmin(admin_id):
+            return jsonify({"error": "Unauthorized. Hanya superadmin yang dapat update berita"}), 403
+        
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        
+        cursor = conn.cursor()
+        
+        # Check if news exists
+        cursor.execute("SELECT news_id FROM News WHERE news_id = %s", (news_id,))
+        if not cursor.fetchone():
+            return jsonify({"error": "Berita tidak ditemukan"}), 404
+        
+        # Build update query dynamically
+        update_fields = []
+        values = []
+        
+        updatable_fields = ['title', 'excerpt', 'content', 'category', 'image_url', 
+                          'external_url', 'author', 'read_time', 'is_published']
+        
+        for field in updatable_fields:
+            if field in data:
+                update_fields.append(f"{field} = %s")
+                values.append(data[field])
+        
+        if not update_fields:
+            return jsonify({"error": "Tidak ada field yang diupdate"}), 400
+        
+        values.append(news_id)
+        query = f"UPDATE News SET {', '.join(update_fields)} WHERE news_id = %s"
+        
+        cursor.execute(query, values)
+        conn.commit()
+        
         return jsonify({
-            "reply": "Maaf, AI sedang sibuk. Coba lagi nanti.",
-            "error": str(e)
-        }), 500
+            "success": True,
+            "message": "Berita berhasil diupdate"
+        }), 200
+        
+    except Exception as e:
+        print(f"[Update News] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+@app.route('/api/news/<int:news_id>', methods=['DELETE'])
+def delete_news(news_id):
+    """
+    API untuk delete berita (admin only)
+    Body: {admin_id}
+    Returns: {message}
+    """
+    conn = None
+    cursor = None
+    
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "Invalid request data"}), 400
+        
+        admin_id = data.get('admin_id')
+        if not admin_id or not verify_superadmin(admin_id):
+            return jsonify({"error": "Unauthorized. Hanya superadmin yang dapat delete berita"}), 403
+        
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        
+        cursor = conn.cursor()
+        
+        # Check if news exists
+        cursor.execute("SELECT news_id FROM News WHERE news_id = %s", (news_id,))
+        if not cursor.fetchone():
+            return jsonify({"error": "Berita tidak ditemukan"}), 404
+        
+        cursor.execute("DELETE FROM News WHERE news_id = %s", (news_id,))
+        conn.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": "Berita berhasil dihapus"
+        }), 200
+        
+    except Exception as e:
+        print(f"[Delete News] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+# --- Chat AI menggunakan Google Gemini REST API ---
 
 
 # --- Health Check Endpoint (untuk deployment platforms) ---
