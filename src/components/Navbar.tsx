@@ -69,7 +69,12 @@ export default function Navbar({
             try {
               const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
               console.log('[Navbar] Fetching role from backend for:', userEmail);
-              const response = await fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(userEmail)}`);
+              const response = await fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(userEmail)}`, {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'ngrok-skip-browser-warning': 'true'
+                }
+              });
               console.log('[Navbar] Backend response status:', response.status);
               
               if (response.ok) {

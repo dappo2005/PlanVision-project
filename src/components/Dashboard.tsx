@@ -148,7 +148,12 @@ export default function Dashboard({
             try {
               const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
               console.log('[Dashboard] Syncing role from:', `${API_URL}/api/user/role?email=${encodeURIComponent(user.email)}`);
-              const response = await fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(user.email)}`);
+              const response = await fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(user.email)}`, {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'ngrok-skip-browser-warning': 'true'
+                }
+              });
               console.log('[Dashboard] Role sync response status:', response.status);
               if (response.ok) {
                 const data = await response.json();

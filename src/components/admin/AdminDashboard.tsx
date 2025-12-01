@@ -102,6 +102,12 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
     }
   }, [adminId, isAdmin, activeTab, currentPage, searchQuery, roleFilter]);
 
+  // Headers untuk bypass ngrok warning page
+  const fetchHeaders = {
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true'
+  };
+
   const loadUsers = async () => {
     setUsersLoading(true);
     try {
@@ -113,7 +119,9 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
       if (searchQuery) params.append('search', searchQuery);
       if (roleFilter) params.append('role', roleFilter);
       
-      const response = await fetch(`${API_URL}/api/admin/users?${params}`);
+      const response = await fetch(`${API_URL}/api/admin/users?${params}`, {
+        headers: fetchHeaders
+      });
       
       if (response.ok) {
         const data = await response.json();
@@ -133,12 +141,12 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
   const loadDashboardStats = async () => {
     setIsLoading(true);
     try {
-      // Load stats from multiple endpoints
+      // Load stats from multiple endpoints with ngrok headers
       const [usersRes, feedbacksRes, detectionsRes, newsRes] = await Promise.all([
-        fetch(`${API_URL}/api/admin/users/stats`).catch(() => null),
-        fetch(`${API_URL}/api/admin/feedbacks/stats?admin_id=${adminId}`).catch(() => null),
-        fetch(`${API_URL}/api/admin/detections/stats`).catch(() => null),
-        fetch(`${API_URL}/api/admin/news/stats`).catch(() => null)
+        fetch(`${API_URL}/api/admin/users/stats`, { headers: fetchHeaders }).catch(() => null),
+        fetch(`${API_URL}/api/admin/feedbacks/stats?admin_id=${adminId}`, { headers: fetchHeaders }).catch(() => null),
+        fetch(`${API_URL}/api/admin/detections/stats`, { headers: fetchHeaders }).catch(() => null),
+        fetch(`${API_URL}/api/admin/news/stats`, { headers: fetchHeaders }).catch(() => null)
       ]);
 
       const usersData = usersRes?.ok ? await usersRes.json() : { total: 0, active: 0 };

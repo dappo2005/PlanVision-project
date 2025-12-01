@@ -73,6 +73,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
       },
       body: JSON.stringify(loginData)
     })
@@ -88,7 +89,12 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
           // ALWAYS verify role from backend, even if it exists in response
           if (data.email) {
             console.log("Verifying role from backend...");
-            fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(data.email)}`)
+            fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(data.email)}`, {
+              headers: {
+                'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true'
+              }
+            })
               .then(res => {
                 console.log("Role verification response status:", res.status);
                 if (res.ok) {
@@ -190,6 +196,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
       },
       body: JSON.stringify(registerData)
     })

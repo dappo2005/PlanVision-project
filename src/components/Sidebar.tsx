@@ -69,7 +69,12 @@ export default function Sidebar({
           if (userEmail) {
             try {
               const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
-              const response = await fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(userEmail)}`);
+              const response = await fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(userEmail)}`, {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'ngrok-skip-browser-warning': 'true'
+                }
+              });
               
               if (response.ok) {
                 const data = await response.json();

@@ -65,6 +65,12 @@ export default function AdminFeedbackDashboard({ onLogout, onNavigateToDashboard
   const navigate = useNavigate();
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   
+  // Headers untuk bypass ngrok warning page
+  const fetchHeaders = {
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true'
+  };
+  
   const [adminId, setAdminId] = useState<number | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -122,7 +128,9 @@ export default function AdminFeedbackDashboard({ onLogout, onNavigateToDashboard
 
   const loadStats = async (aid: number) => {
     try {
-      const response = await fetch(`${API_URL}/api/admin/feedbacks/stats?admin_id=${aid}`);
+      const response = await fetch(`${API_URL}/api/admin/feedbacks/stats?admin_id=${aid}`, {
+        headers: fetchHeaders
+      });
       const data = await response.json();
 
       if (response.ok) {
@@ -144,7 +152,9 @@ export default function AdminFeedbackDashboard({ onLogout, onNavigateToDashboard
       if (status && status !== 'all') params.append('status', status);
       if (category && category !== 'all') params.append('category', category);
       
-      const response = await fetch(`${API_URL}/api/admin/feedbacks?${params}`);
+      const response = await fetch(`${API_URL}/api/admin/feedbacks?${params}`, {
+        headers: fetchHeaders
+      });
       const data = await response.json();
 
       if (response.ok) {
@@ -169,7 +179,7 @@ export default function AdminFeedbackDashboard({ onLogout, onNavigateToDashboard
     try {
       const response = await fetch(`${API_URL}/api/admin/feedbacks/${selectedFeedback.feedback_id}/status`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: fetchHeaders,
         body: JSON.stringify({
           admin_id: adminId,
           status: updateForm.status,
@@ -200,7 +210,7 @@ export default function AdminFeedbackDashboard({ onLogout, onNavigateToDashboard
     try {
       const response = await fetch(`${API_URL}/api/admin/feedbacks/${selectedFeedback.feedback_id}/response`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: fetchHeaders,
         body: JSON.stringify({
           admin_id: adminId,
           response_text: responseText,
