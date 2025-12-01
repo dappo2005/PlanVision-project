@@ -55,7 +55,11 @@ export default function MyFeedbacks({ onLogout, onNavigateToDashboard }: MyFeedb
   const loadFeedbacks = async (uid: number) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/feedback/my-feedbacks/${uid}`);
+      const response = await fetch(`${API_URL}/api/feedback/my-feedbacks/${uid}`, {
+        headers: {
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
       const data = await response.json();
 
       if (response.ok) {

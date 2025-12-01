@@ -28,6 +28,12 @@ interface Message {
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
 
+// Headers untuk bypass ngrok warning page
+const fetchHeaders = {
+  'Content-Type': 'application/json',
+  'ngrok-skip-browser-warning': 'true'
+};
+
 const quickQuestions = [
   "Bagaimana cara mengatasi citrus canker?",
   "Apa penyebab daun jeruk menguning?",
@@ -85,9 +91,7 @@ export default function ChatAI({
       // 2. Panggil API Backend Flask
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: fetchHeaders,
         body: JSON.stringify({ message: messageToSend }),
       });
 

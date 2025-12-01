@@ -60,7 +60,10 @@ console.log("[Feedback] API_URL:", API_URL);
         const timeoutId = setTimeout(() => controller.abort(), 15000);
         
         const response = await fetch(`${API_URL}/api/feedback/public?limit=10&sort=date_desc`, {
-          signal: controller.signal
+          signal: controller.signal,
+          headers: {
+            'ngrok-skip-browser-warning': 'true'
+          }
         });
         
         clearTimeout(timeoutId);
@@ -104,6 +107,7 @@ console.log("[Feedback] API_URL:", API_URL);
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify({
           user_id: userData.id,
@@ -130,7 +134,10 @@ console.log("[Feedback] API_URL:", API_URL);
           const reloadController = new AbortController();
           const reloadTimeout = setTimeout(() => reloadController.abort(), 5000);
           fetch(`${API_URL}/api/feedback/public?limit=10&sort=date_desc`, {
-            signal: reloadController.signal
+            signal: reloadController.signal,
+            headers: {
+              'ngrok-skip-browser-warning': 'true'
+            }
           })
             .then(res => {
               clearTimeout(reloadTimeout);

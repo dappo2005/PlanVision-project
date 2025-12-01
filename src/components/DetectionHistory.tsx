@@ -8,6 +8,12 @@ import { toast } from "sonner";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+// Headers untuk bypass ngrok warning page
+const fetchHeaders = {
+  'Content-Type': 'application/json',
+  'ngrok-skip-browser-warning': 'true'
+};
+
 interface DetectionRecord {
   id: number;
   image_url: string;
@@ -44,7 +50,9 @@ const DetectionHistory: React.FC = () => {
   const loadHistory = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/detection-history/${userId}`);
+      const response = await fetch(`${API_URL}/api/detection-history/${userId}`, {
+        headers: fetchHeaders
+      });
       const data = await response.json();
 
       if (response.ok) {

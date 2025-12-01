@@ -74,6 +74,7 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
         },
       });
 
@@ -297,6 +298,7 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify({
           title: newArticle.title,
@@ -402,6 +404,7 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify({
           title: newArticle.title,
@@ -458,6 +461,7 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
           },
           body: JSON.stringify({
             admin_id: user.user_id
