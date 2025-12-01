@@ -1050,6 +1050,72 @@ def get_all_feedbacks():
 
 
 # --- API GET FEEDBACK STATISTICS (Admin) ---
+@app.route('/api/admin/feedbacks/stats', methods=['GET'])
+def get_feedback_stats():
+    """
+    API untuk mendapatkan statistik feedback
+    Query params: ?admin_id=1
+    Returns: {total, pending, by_status, by_category, by_rating}
+    """
+    conn = None
+    cursor = None
+    
+    try:
+        admin_id = request.args.get('admin_id')
+        if not admin_id or not verify_superadmin(admin_id):
+            return jsonify({"error": "Unauthorized. Superadmin access required"}), 403
+        
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        
+        cursor = conn.cursor(dictionary=True)
+        
+        # Total feedbacks
+        cursor.execute("SELECT COUNT(*) as total FROM Feedback")
+        total_result = cursor.fetchone()
+        total: int = total_result['total'] if total_result else 0  # type: ignore
+        
+        # Pending feedbacks
+        cursor.execute("SELECT COUNT(*) as pending FROM Feedback WHERE status = 'pending'")
+        pending_result = cursor.fetchone()
+        pending: int = pending_result['pending'] if pending_result else 0  # type: ignore
+        
+        # By status
+        cursor.execute("SELECT status, COUNT(*) as count FROM Feedback GROUP BY status")
+        by_status = {row['status']: row['count'] for row in cursor.fetchall()}  # type: ignore
+        
+        # By category
+        cursor.execute("SELECT category, COUNT(*) as count FROM Feedback GROUP BY category")
+        by_category = {row['category']: row['count'] for row in cursor.fetchall()}  # type: ignore
+        
+        # By rating
+        cursor.execute("SELECT rating, COUNT(*) as count FROM Feedback GROUP BY rating ORDER BY rating")
+        by_rating = {row['rating']: row['count'] for row in cursor.fetchall()}  # type: ignore
+        
+        # Average rating
+        cursor.execute("SELECT AVG(rating) as avg_rating FROM Feedback")
+        avg_result = cursor.fetchone()
+        avg_rating = float(avg_result['avg_rating']) if avg_result and avg_result['avg_rating'] else 0  # type: ignore
+        
+        return jsonify({
+            "total": total,
+            "pending": pending,
+            "by_status": by_status,
+            "by_category": by_category,
+            "by_rating": by_rating,
+            "average_rating": round(avg_rating, 2)
+        }), 200
+        
+    except Exception as e:
+        print(f"[Feedback Stats] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+# --- API CHAT AI ---
 @app.route('/api/chat', methods=['POST'])
 def chat_ai():
     try:
@@ -1578,6 +1644,56 @@ def get_detections_stats():
 # ===================================================================
 # NEWS API (Berita/Artikel)
 # ===================================================================
+
+@app.route('/api/admin/news/stats', methods=['GET'])
+def get_news_stats():
+    """
+    API untuk mendapatkan statistik berita
+    Returns: {total, published, draft, by_category}
+    """
+    conn = None
+    cursor = None
+    
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        
+        cursor = conn.cursor(dictionary=True)
+        
+        # Total news
+        cursor.execute("SELECT COUNT(*) as total FROM News")
+        total_result = cursor.fetchone()
+        total: int = total_result['total'] if total_result else 0  # type: ignore
+        
+        # Published news
+        cursor.execute("SELECT COUNT(*) as published FROM News WHERE is_published = 1")
+        published_result = cursor.fetchone()
+        published: int = published_result['published'] if published_result else 0  # type: ignore
+        
+        # Draft news
+        cursor.execute("SELECT COUNT(*) as draft FROM News WHERE is_published = 0")
+        draft_result = cursor.fetchone()
+        draft: int = draft_result['draft'] if draft_result else 0  # type: ignore
+        
+        # By category
+        cursor.execute("SELECT category, COUNT(*) as count FROM News GROUP BY category")
+        by_category = {row['category']: row['count'] for row in cursor.fetchall()}  # type: ignore
+        
+        return jsonify({
+            "total": total,
+            "published": published,
+            "draft": draft,
+            "by_category": by_category
+        }), 200
+        
+    except Exception as e:
+        print(f"[News Stats] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
 
 @app.route('/api/news', methods=['GET'])
 def get_all_news():

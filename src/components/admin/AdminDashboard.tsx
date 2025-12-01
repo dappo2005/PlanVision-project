@@ -134,23 +134,25 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
     setIsLoading(true);
     try {
       // Load stats from multiple endpoints
-      const [usersRes, feedbacksRes, detectionsRes] = await Promise.all([
+      const [usersRes, feedbacksRes, detectionsRes, newsRes] = await Promise.all([
         fetch(`${API_URL}/api/admin/users/stats`).catch(() => null),
         fetch(`${API_URL}/api/admin/feedbacks/stats?admin_id=${adminId}`).catch(() => null),
-        fetch(`${API_URL}/api/admin/detections/stats`).catch(() => null)
+        fetch(`${API_URL}/api/admin/detections/stats`).catch(() => null),
+        fetch(`${API_URL}/api/admin/news/stats`).catch(() => null)
       ]);
 
       const usersData = usersRes?.ok ? await usersRes.json() : { total: 0, active: 0 };
-      const feedbacksData = feedbacksRes?.ok ? await feedbacksRes.json() : { total: 0, pending: 0 };
+      const feedbacksData = feedbacksRes?.ok ? await feedbacksRes.json() : { total: 0, pending: 0, by_status: {} };
       const detectionsData = detectionsRes?.ok ? await detectionsRes.json() : { total: 0 };
+      const newsData = newsRes?.ok ? await newsRes.json() : { total: 0 };
 
       setStats({
         totalUsers: usersData.total || 0,
         totalFeedbacks: feedbacksData.total || 0,
-        totalNews: 0, // Will be loaded separately
+        totalNews: newsData.total || 0,
         totalDetections: detectionsData.total || 0,
         activeUsers: usersData.active || 0,
-        pendingFeedbacks: feedbacksData.by_status?.pending || 0,
+        pendingFeedbacks: feedbacksData.by_status?.pending || feedbacksData.pending || 0,
         recentActivity: []
       });
     } catch (error) {
