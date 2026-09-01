@@ -4,6 +4,7 @@ mysql-connector-python
 bcrypt
 pillow
 scipy
+numpy<2
 tensorflow==2.15.0
 werkzeug
 python-dotenv

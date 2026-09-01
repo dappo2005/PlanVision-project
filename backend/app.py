@@ -18,6 +18,13 @@ from disease_info import get_disease_info
 from dotenv import load_dotenv
 import google.generativeai as genai
 
+# Import mock database untuk fallback
+try:
+    from mock_db import mock_db
+    MOCK_DB_AVAILABLE = True
+except ImportError:
+    MOCK_DB_AVAILABLE = False
+
 app = Flask(__name__)
 
 # CORS Configuration - allow specific origins in production
@@ -93,7 +100,13 @@ DB_USER = os.getenv('DB_USER', 'root')
 DB_PASSWORD = os.getenv('DB_PASSWORD', 'D@ffa_2005')
 DB_NAME = os.getenv('DB_NAME', 'plantvision_db')
 
+# Check database mode
+USE_MOCK_DB = os.getenv('USE_MOCK_DB') == '1'
 print(f"[Backend] Connecting to MySQL DB='{DB_NAME}' on {DB_HOST}:{DB_PORT} as {DB_USER}")
+if USE_MOCK_DB and MOCK_DB_AVAILABLE:
+    print("[Database] ⚠️  MOCK DATABASE MODE ENABLED - Using in-memory mock database")
+else:
+    print("[Database] Using real MySQL database")
 
 def get_db_connection():
     """Fungsi helper untuk membuat koneksi database"""
@@ -155,7 +168,26 @@ def register_user():
         # Bcrypt menghasilkan bytes ASCII -> simpan sebagai string supaya login sederhana
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
-        # 3. Dapatkan koneksi database
+        # [FALLBACK] Try mock database first if enabled
+        if USE_MOCK_DB and MOCK_DB_AVAILABLE:
+            try:
+                result = mock_db.register_user(
+                    nama=nama,
+                    email=email,
+                    username=data.get('username') or email.split('@')[0],
+                    phone=phone,
+                    password=hashed_password,
+                    accept_terms=accept_terms
+                )
+                return jsonify({
+                    "message": result['message'],
+                    "username": result['username'],
+                    "user_id": result['user_id']
+                }), 201
+            except Exception as e:
+                return jsonify({"error": str(e)}), 400
+
+        # 3. Dapatkan koneksi database (real MySQL)
         conn = get_db_connection()
         if conn is None:
             return jsonify({"error": "Koneksi database gagal"}), 500
@@ -224,7 +256,23 @@ def login_user():
         if not username_or_email or not password:
             return jsonify({"error": "Username/email dan password diperlukan"}), 400
 
-        # 2. Dapatkan koneksi database
+        # [FALLBACK] Try mock database first if enabled
+        if USE_MOCK_DB and MOCK_DB_AVAILABLE:
+            try:
+                user = mock_db.login_user(username_or_email, password)
+                return jsonify({
+                    "message": f"Login sukses. Selamat datang, {user['nama']}!",
+                    "user_id": user['user_id'],
+                    "nama": user['nama'],
+                    "email": user['email'],
+                    "username": user['username'],
+                    "role": user['role'],
+                    "status_akun": user['status_akun']
+                }), 200
+            except Exception as e:
+                return jsonify({"error": str(e)}), 401
+
+        # 2. Dapatkan koneksi database (real MySQL)
         conn = get_db_connection()
         if conn is None:
             return jsonify({"error": "Koneksi database gagal"}), 500
