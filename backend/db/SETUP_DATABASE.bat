@@ -55,7 +55,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [OK] Tabel berhasil dibuat
+echo [OK] Tabel berhasil dibuat (SAFE MODE: data existing tidak dihapus)
 echo.
 
 echo [3/3] Verifikasi tabel...

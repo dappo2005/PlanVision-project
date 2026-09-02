@@ -1,9 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
-import { ScrollArea } from "./ui/scroll-area";
-import { Leaf, ArrowLeft, Home, Send, Bot, User, Sparkles, MessageSquare } from "lucide-react";
+import { Leaf, ArrowLeft, Home, Send, Bot, User, Sparkles, MessageSquare, ArrowDown } from "lucide-react";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 
@@ -63,13 +62,40 @@ export default function ChatAI({
   ]);
   const [inputMessage, setInputMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [isUserAtBottom, setIsUserAtBottom] = useState(true);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  // Detect scroll position — track if user is at bottom
+  const handleScroll = useCallback(() => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    setIsUserAtBottom(atBottom);
+  }, []);
 
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
-    }
-  }, [messages, isTyping]);
+    const el = chatContainerRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
+
+  // Auto-scroll to bottom ONLY when user is already at/near bottom
+  useEffect(() => {
+    if (!isUserAtBottom) return;
+    const el = chatContainerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, [messages, isTyping, isUserAtBottom]);
+
+  // Manual scroll to bottom (for the "Pesan terbaru" button)
+  const scrollToBottom = useCallback(() => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    setIsUserAtBottom(true);
+  }, []);
 
  const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
@@ -131,37 +157,39 @@ export default function ChatAI({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-orange-50">
-
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-orange-50 pb-6">
+      <div className="container mx-auto px-4 py-6 lg:py-8">
+        <div className="max-w-5xl mx-auto w-full min-w-0">
           {/* Header */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-6 lg:mb-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-gray-200 mb-4">
               <Sparkles className="w-5 h-5 text-[#F39C12]" />
               <span className="text-gray-700">AI-Powered Agricultural Assistant</span>
             </div>
-            <h1 className="text-4xl md:text-5xl text-gray-900 mb-4">
+            <h1 className="text-3xl lg:text-5xl text-gray-900 mb-3">
               Tanya PlantVision AI
             </h1>
-            <p className="text-xl text-gray-600">
+            <p className="text-base lg:text-xl text-gray-600">
               Dapatkan jawaban instan untuk pertanyaan seputar budidaya dan penyakit jeruk
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Chat Area */}
-            <div className="lg:col-span-2">
-              <Card className="h-[600px] flex flex-col">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            {/* Chat Area - responsive: viewport-aware height, no cut-off, scrollable */}
+            <div className="lg:col-span-2 min-w-0">
+              <Card className="relative flex flex-col overflow-hidden h-[calc(100vh-240px)] min-h-[420px] max-h-[720px] lg:h-[600px] lg:max-h-[640px] shadow-lg">
                 <CardHeader className="border-b bg-gradient-to-r from-[#2ECC71]/5 to-[#F39C12]/5">
                   <CardTitle className="flex items-center gap-2">
                     <MessageSquare className="w-5 h-5 text-[#2ECC71]" />
                     Percakapan
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="flex-1 flex flex-col p-0">
-                  {/* Messages */}
-                  <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
+                <CardContent className="flex-1 flex flex-col p-0 min-h-0 overflow-hidden">
+                  {/* Messages - native overflow-y-auto for reliable scroll detection */}
+                  <div
+                    ref={chatContainerRef}
+                    className="flex-1 min-h-0 overflow-y-auto p-4"
+                  >
                     <div className="space-y-4">
                       {messages.map((message) => (
                         <div
@@ -213,10 +241,22 @@ export default function ChatAI({
                         </div>
                       )}
                     </div>
-                  </ScrollArea>
+                  </div>
 
-                  {/* Input */}
-                  <div className="border-t p-4 bg-white">
+                  {/* Floating "Pesan terbaru" button - only when scrolled up */}
+                  {!isUserAtBottom && (
+                    <button
+                      type="button"
+                      onClick={scrollToBottom}
+                      className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#2ECC71] text-white text-sm font-medium shadow-lg hover:bg-[#27AE60] transition-all duration-200 animate-in fade-in slide-in-from-bottom-2"
+                    >
+                      <ArrowDown className="w-4 h-4" />
+                      Pesan terbaru
+                    </button>
+                  )}
+
+                  {/* Input - sticky bottom, safe area */}
+                  <div className="border-t p-3 lg:p-4 bg-white shrink-0">
                     <form
                       onSubmit={(e) => {
                         e.preventDefault();
@@ -243,8 +283,8 @@ export default function ChatAI({
               </Card>
             </div>
 
-            {/* Quick Questions Sidebar */}
-            <div className="space-y-6">
+            {/* Quick Questions Sidebar - sticky on desktop to avoid cut */}
+            <div className="space-y-6 lg:sticky lg:top-6 self-start min-w-0">
               <Card className="shadow-md">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-lg">

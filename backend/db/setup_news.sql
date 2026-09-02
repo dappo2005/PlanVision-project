@@ -5,13 +5,13 @@
 
 USE plantvision_db;
 
--- Drop existing table if exists
-DROP TABLE IF EXISTS News;
+-- SAFE MODE: Non-destructive - jangan drop jika sudah ada data
+-- Hapus baris DROP hanya jika ingin reset paksa (--force)
 
 -- =====================================================
 -- Tabel News: Menyimpan artikel berita
 -- =====================================================
-CREATE TABLE News (
+CREATE TABLE IF NOT EXISTS News (
     news_id INT AUTO_INCREMENT PRIMARY KEY,
     
     -- Content
@@ -48,44 +48,41 @@ CREATE TABLE News (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
--- Insert sample news data
+-- Insert sample news data (idempotent: IGNORE + fixed IDs, tidak duplikat saat re-run)
 -- =====================================================
-INSERT INTO News (title, excerpt, content, category, image_url, author, read_time, is_published) VALUES
-('Teknologi AI Meningkatkan Deteksi Penyakit Citrus Greening Hingga 95%', 
- 'Penelitian terbaru menunjukkan bahwa kombinasi machine learning dan sensor IoT dapat mendeteksi Huanglongbing lebih awal, memberikan waktu lebih banyak untuk penanganan.',
- 'Penelitian terbaru menunjukkan bahwa kombinasi machine learning dan sensor IoT dapat mendeteksi Huanglongbing lebih awal. Teknologi ini memungkinkan petani untuk mengidentifikasi penyakit pada tahap awal dengan akurasi hingga 95%, memberikan waktu lebih banyak untuk penanganan yang efektif.',
- 'teknologi',
- 'https://images.unsplash.com/photo-1642519561465-d9c699d2dddd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
- 'Dr. Ahmad Suryanto',
- '5 menit',
- 1),
-
-('Harga Jeruk Lokal Naik 30% Menjelang Musim Panen Raya',
- 'Petani jeruk di Kabupaten Batu optimis dengan kenaikan harga yang mencapai Rp 8.000-10.000 per kg di pasar lokal. Permintaan ekspor juga meningkat signifikan.',
- 'Petani jeruk di Kabupaten Batu optimis dengan kenaikan harga yang mencapai Rp 8.000-10.000 per kg di pasar lokal. Permintaan ekspor juga meningkat signifikan terutama ke negara-negara Asia Tenggara dan Jepang.',
- 'pasar',
- 'https://images.unsplash.com/photo-1741012253484-43b5b9b99491?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
- 'Budi Hartono',
- '4 menit',
- 1),
-
-('Metode Pangkas Santai Tingkatkan Produktivitas Jeruk Hingga 40%',
- 'Teknik pemangkasan baru yang dikembangkan IPB University terbukti meningkatkan jumlah buah per pohon tanpa mengurangi kualitas. Metode ini lebih hemat tenaga dan waktu.',
- 'Teknik pemangkasan baru yang dikembangkan IPB University terbukti meningkatkan jumlah buah per pohon tanpa mengurangi kualitas. Metode ini lebih hemat tenaga dan waktu, serta dapat diterapkan oleh petani dengan mudah.',
- 'budidaya',
- 'https://images.unsplash.com/photo-1730810618606-9a3f016d826d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
- 'Prof. Siti Aminah',
- '6 menit',
- 1),
-
-('Penemuan Varietas Jeruk Tahan HLB dari Hasil Penelitian 10 Tahun',
- 'BPTP Jawa Timur berhasil mengembangkan varietas jeruk baru yang memiliki ketahanan tinggi terhadap penyakit Huanglongbing (HLB) yang selama ini menjadi momok petani.',
- 'BPTP Jawa Timur berhasil mengembangkan varietas jeruk baru yang memiliki ketahanan tinggi terhadap penyakit Huanglongbing (HLB). Varietas ini merupakan hasil penelitian selama 10 tahun dan telah diuji di berbagai kondisi lahan.',
- 'penelitian',
- 'https://images.unsplash.com/photo-1741012253484-43b5b9b99491?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
- 'Dr. Agus Wijaya',
- '7 menit',
- 1);
+INSERT IGNORE INTO News (news_id, title, excerpt, content, category, image_url, author, read_time, is_published) VALUES
+(1, 'Teknologi AI Meningkatkan Deteksi Penyakit Citrus Greening Hingga 95%', 
+  'Penelitian terbaru menunjukkan bahwa kombinasi machine learning dan sensor IoT dapat mendeteksi Huanglongbing lebih awal, memberikan waktu lebih banyak untuk penanganan.',
+  'Penelitian terbaru menunjukkan bahwa kombinasi machine learning dan sensor IoT dapat mendeteksi Huanglongbing lebih awal. Teknologi ini memungkinkan petani untuk mengidentifikasi penyakit pada tahap awal dengan akurasi hingga 95%, memberikan waktu lebih banyak untuk penanganan yang efektif.',
+  'teknologi',
+  'https://images.unsplash.com/photo-1642519561465-d9c699d2dddd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+  'Dr. Ahmad Suryanto',
+  '5 menit',
+  1),
+(2, 'Harga Jeruk Lokal Naik 30% Menjelang Musim Panen Raya',
+  'Petani jeruk di Kabupaten Batu optimis dengan kenaikan harga yang mencapai Rp 8.000-10.000 per kg di pasar lokal. Permintaan ekspor juga meningkat signifikan.',
+  'Petani jeruk di Kabupaten Batu optimis dengan kenaikan harga yang mencapai Rp 8.000-10.000 per kg di pasar lokal. Permintaan ekspor juga meningkat signifikan terutama ke negara-negara Asia Tenggara dan Jepang.',
+  'pasar',
+  'https://images.unsplash.com/photo-1741012253484-43b5b9b99491?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+  'Budi Hartono',
+  '4 menit',
+  1),
+(3, 'Metode Pangkas Santai Tingkatkan Produktivitas Jeruk Hingga 40%',
+  'Teknik pemangkasan baru yang dikembangkan IPB University terbukti meningkatkan jumlah buah per pohon tanpa mengurangi kualitas. Metode ini lebih hemat tenaga dan waktu.',
+  'Teknik pemangkasan baru yang dikembangkan IPB University terbukti meningkatkan jumlah buah per pohon tanpa mengurangi kualitas. Metode ini lebih hemat tenaga dan waktu, serta dapat diterapkan oleh petani dengan mudah.',
+  'budidaya',
+  'https://images.unsplash.com/photo-1730810618606-9a3f016d826d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+  'Prof. Siti Aminah',
+  '6 menit',
+  1),
+(4, 'Penemuan Varietas Jeruk Tahan HLB dari Hasil Penelitian 10 Tahun',
+  'BPTP Jawa Timur berhasil mengembangkan varietas jeruk baru yang memiliki ketahanan tinggi terhadap penyakit Huanglongbing (HLB) yang selama ini menjadi momok petani.',
+  'BPTP Jawa Timur berhasil mengembangkan varietas jeruk baru yang memiliki ketahanan tinggi terhadap penyakit Huanglongbing (HLB). Varietas ini merupakan hasil penelitian selama 10 tahun dan telah diuji di berbagai kondisi lahan.',
+  'penelitian',
+  'https://images.unsplash.com/photo-1741012253484-43b5b9b99491?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+  'Dr. Agus Wijaya',
+  '7 menit',
+  1);
 
 -- =====================================================
 -- Verification queries

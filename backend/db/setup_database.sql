@@ -4,12 +4,10 @@ CREATE DATABASE IF NOT EXISTS plantvision_db;
 -- Use the database
 USE plantvision_db;
 
--- Drop DetectionHistory table first if exists (to avoid foreign key issues)
-DROP TABLE IF EXISTS DetectionHistory;
+-- SAFE MODE: Non-destructive setup - tidak menghapus data existing
+-- Jika tabel sudah ada, tidak akan di-drop. Gunakan MIGRATE_TO_DETECTION_HISTORY.sql dengan --force untuk reset paksa.
 
--- Create or recreate the User table
-DROP TABLE IF EXISTS User;
-CREATE TABLE User (
+CREATE TABLE IF NOT EXISTS User (
     user_id INT AUTO_INCREMENT PRIMARY KEY,
     nama VARCHAR(100) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
@@ -23,8 +21,8 @@ CREATE TABLE User (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create the DetectionHistory table for storing ML detection results
-CREATE TABLE DetectionHistory (
+-- Create the DetectionHistory table for storing ML detection results (aman: IF NOT EXISTS)
+CREATE TABLE IF NOT EXISTS DetectionHistory (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     image_path VARCHAR(255) NOT NULL,

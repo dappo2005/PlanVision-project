@@ -6,14 +6,13 @@
 
 USE plantvision_db;
 
--- Drop existing tables if they exist (untuk clean setup)
-DROP TABLE IF EXISTS FeedbackResponse;
-DROP TABLE IF EXISTS Feedback;
+-- SAFE MODE: Non-destructive - jangan drop jika sudah ada data
+-- Hapus 2 baris DROP di bawah hanya jika ingin reset paksa (--force)
 
 -- =====================================================
 -- Tabel Feedback: Menyimpan semua feedback dari user & guest
 -- =====================================================
-CREATE TABLE Feedback (
+CREATE TABLE IF NOT EXISTS Feedback (
     feedback_id INT AUTO_INCREMENT PRIMARY KEY,
     
     -- User Information
@@ -56,7 +55,7 @@ CREATE TABLE Feedback (
 -- =====================================================
 -- Tabel FeedbackResponse: Response/Notes dari Admin
 -- =====================================================
-CREATE TABLE FeedbackResponse (
+CREATE TABLE IF NOT EXISTS FeedbackResponse (
     response_id INT AUTO_INCREMENT PRIMARY KEY,
     feedback_id INT NOT NULL,
     admin_id INT NOT NULL,

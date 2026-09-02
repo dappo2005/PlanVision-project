@@ -414,6 +414,28 @@ def predict_disease():
         # 5. Simpan ke Database (REFACTORED: Prioritas DetectionHistory)
         history_id = None
         if user_id:
+            # Jika mock mode aktif, simpan ke mock_db (tidak hilang jika MySQL down, tapi tetap in-memory)
+            if USE_MOCK_DB and MOCK_DB_AVAILABLE:
+                try:
+                    # severity & info sama seperti di bawah
+                    if top_prob >= 0.9:
+                        _sev = "tinggi"
+                    elif top_prob >= 0.7:
+                        _sev = "sedang"
+                    else:
+                        _sev = "rendah"
+                    md = mock_db.add_detection(
+                        user_id=int(user_id), image_path=filename, disease_name=top_class,
+                        confidence=top_prob*100, severity=_sev,
+                        description=disease_info.get('description',''),
+                        symptoms=json.dumps(disease_info.get('symptoms',[])),
+                        treatment=json.dumps(disease_info.get('treatment',[])),
+                        prevention=json.dumps(disease_info.get('prevention',[]))
+                    )
+                    history_id = md.get('id')
+                    print(f"[DetectionHistory Mock] Saved ID: {history_id}")
+                except Exception as me:
+                    print(f"[DetectionHistory Mock] Error: {me}")
             conn = get_db_connection()
             if conn:
                 cursor = conn.cursor()
@@ -494,12 +516,62 @@ def get_detection_history(user_id):
     cursor = None
     
     try:
+        # Mock DB fallback
+        if USE_MOCK_DB and MOCK_DB_AVAILABLE:
+            try:
+                history = mock_db.get_detections(user_id)
+                # Normalisasi ke format API
+                formatted = []
+                for d in history:
+                    formatted.append({
+                        "id": d.get('id'),
+                        "user_id": d.get('user_id'),
+                        "image_url": f"/api/uploads/{d.get('image_path')}",
+                        "disease_name": d.get('disease_name'),
+                        "confidence": float(d.get('confidence', 0)),
+                        "severity": d.get('severity'),
+                        "description": d.get('description', ''),
+                        "symptoms": json.loads(d['symptoms']) if isinstance(d.get('symptoms'), str) and d.get('symptoms') else (d.get('symptoms') or []),
+                        "treatment": json.loads(d['treatment']) if isinstance(d.get('treatment'), str) and d.get('treatment') else (d.get('treatment') or []),
+                        "prevention": json.loads(d['prevention']) if isinstance(d.get('prevention'), str) and d.get('prevention') else (d.get('prevention') or []),
+                        "detection_date": d.get('detection_date')
+                    })
+                return jsonify({"user_id": user_id, "total": len(formatted), "history": formatted, "source": "mock"}), 200
+            except Exception as me:
+                print(f"[DetectionHistory Mock] Error: {me}")
+
         conn = get_db_connection()
         if conn is None:
             return jsonify({"error": "Koneksi database gagal"}), 500
         
         cursor = conn.cursor(dictionary=True)
         
+        # Auto-create DetectionHistory jika belum ada (self-heal, non-destruktif) - cek via INFORMATION_SCHEMA agar tidak unread result
+        cursor.execute("SELECT COUNT(*) as c FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=%s AND TABLE_NAME='DetectionHistory'", (DB_NAME,))
+        tbl_exists = cursor.fetchone()
+        exists_cnt = tbl_exists['c'] if tbl_exists else 0  # type: ignore
+        if exists_cnt == 0:
+            print(f"[DetectionHistory] Tabel belum ada, membuat otomatis")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS DetectionHistory (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    image_path VARCHAR(255) NOT NULL,
+                    disease_name VARCHAR(100) NOT NULL,
+                    confidence DECIMAL(5, 2) NOT NULL,
+                    severity VARCHAR(20) NOT NULL,
+                    description TEXT,
+                    symptoms TEXT,
+                    treatment TEXT,
+                    prevention TEXT,
+                    detection_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE,
+                    INDEX idx_user_date (user_id, detection_date DESC)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
+            conn.commit()
+            return jsonify({"user_id": user_id, "total": 0, "history": [], "warning": "Tabel DetectionHistory baru dibuat, belum ada data"}), 200
+
         query = """
             SELECT 
                 id, user_id, image_path, disease_name, confidence, severity,
@@ -512,10 +584,20 @@ def get_detection_history(user_id):
         cursor.execute(query, (user_id,))
         results = cursor.fetchall()
         
-        # Parse JSON fields
+        # Parse JSON fields (tahan terhadap data korup)
+        def _safe_json(v):
+            if not v:
+                return []
+            if isinstance(v, list):
+                return v
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, list) else [str(parsed)]
+            except:
+                return [str(v)] if isinstance(v, str) else []
+
         history = []
         for row in results:
-            # Type assertion for Pylance - cursor with dictionary=True returns dict
             row_data: dict = row  # type: ignore
             history.append({
                 "id": row_data['id'],
@@ -525,21 +607,85 @@ def get_detection_history(user_id):
                 "confidence": float(row_data['confidence']),
                 "severity": row_data['severity'],
                 "description": row_data['description'],
-                "symptoms": json.loads(row_data['symptoms']) if row_data['symptoms'] else [],
-                "treatment": json.loads(row_data['treatment']) if row_data['treatment'] else [],
-                "prevention": json.loads(row_data['prevention']) if row_data['prevention'] else [],
+                "symptoms": _safe_json(row_data['symptoms']),
+                "treatment": _safe_json(row_data['treatment']),
+                "prevention": _safe_json(row_data['prevention']),
                 "detection_date": row_data['detection_date'].isoformat() if row_data['detection_date'] else None
             })
+
+        # FALLBACK: Jika DetectionHistory kosong, coba baca dari legacy Diagnosa+DaunJeruk (agar data lama tidak dianggap hilang)
+        if len(history) == 0:
+            try:
+                cursor.execute("""
+                    SELECT d.daun_id as id, d.user_id, d.citra as image_path, dg.hasil_deteksi, dg.tanggal_diagnosa as detection_date
+                    FROM daunjeruk d
+                    JOIN diagnosa dg ON d.daun_id = dg.daun_id
+                    WHERE d.user_id = %s
+                    ORDER BY dg.tanggal_diagnosa DESC
+                """, (user_id,))
+                legacy = cursor.fetchall()
+                if legacy:
+                    for row in legacy:
+                        rd: dict = row  # type: ignore
+                        hasil = rd.get('hasil_deteksi') or ''
+                        # Parse: "Citrus Greening (CVPD/Huanglongbing) (94.3%)" -> disease + confidence
+                        import re as _re
+                        m = _re.search(r'\(([\d\.]+)%\)\s*$', hasil)
+                        conf = float(m.group(1)) if m else 0.0
+                        disease_raw = _re.sub(r'\s*\([\d\.]+%\)\s*$', '', hasil).strip()
+                        # Map old names ke CLASS_NAMES
+                        disease_map = {
+                            'Citrus Greening (CVPD/Huanglongbing)': 'Greening',
+                            'Greening': 'Greening',
+                            'Canker': 'Canker',
+                            'Black spot': 'Black spot',
+                            'Melanose': 'Melanose',
+                            'Healthy': 'Healthy',
+                        }
+                        disease_name = disease_map.get(disease_raw, disease_raw)
+                        if conf >= 90:
+                            severity = "tinggi"
+                        elif conf >= 70:
+                            severity = "sedang"
+                        else:
+                            severity = "rendah"
+                        try:
+                            dinfo = get_disease_info(disease_name)
+                        except:
+                            dinfo = {}
+                        history.append({
+                            "id": rd['id'],
+                            "user_id": rd['user_id'],
+                            "image_url": f"/api/uploads/{rd['image_path']}",
+                            "disease_name": disease_name,
+                            "confidence": conf,
+                            "severity": severity,
+                            "description": dinfo.get('description', ''),
+                            "symptoms": dinfo.get('symptoms', []),
+                            "treatment": dinfo.get('treatment', []),
+                            "prevention": dinfo.get('prevention', []),
+                            "detection_date": rd['detection_date'].isoformat() if rd['detection_date'] else None
+                        })
+                    print(f"[DetectionHistory Fallback] Served {len(history)} legacy records for user {user_id}")
+            except Exception as leg_err:
+                # Jika tabel legacy tidak ada, abaikan
+                if "doesn't exist" not in str(leg_err):
+                    print(f"[Fallback Legacy] Error: {leg_err}")
         
         return jsonify({
             "user_id": user_id,
             "total": len(history),
-            "history": history
+            "history": history,
+            "source": "legacy" if len(results)==0 and len(history)>0 else "detection_history"
         }), 200
         
     except Exception as e:
-        print(f"Error in get_detection_history: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        err_msg = str(e)
+        print(f"Error in get_detection_history: {err_msg}")
+        # Graceful: jika tabel hilang, jangan 500
+        if "doesn't exist" in err_msg:
+            return jsonify({"user_id": user_id, "total": 0, "history": [], "warning": "Tabel DetectionHistory belum ada. Jalankan setup_db.py"}), 200
+        return jsonify({"error": err_msg}), 500
     finally:
         if cursor:
             cursor.close()
@@ -1651,11 +1797,24 @@ def get_all_users():
 def get_detections_stats():
     """
     API untuk mendapatkan statistik deteksi
+    Primary: DetectionHistory, fallback ke Diagnosa (legacy) jika tabel belum ada
     Returns: {total, by_disease, recent_count}
     """
     conn = None
     cursor = None
     
+    def _query_count(table: str, where_clause: str = "") -> int:
+        try:
+            q = f"SELECT COUNT(*) as cnt FROM {table} {where_clause}"
+            cursor.execute(q)
+            r = cursor.fetchone()
+            return int(r['cnt']) if r and 'cnt' in r else 0  # type: ignore
+        except Exception as ex:
+            # Tabel tidak ada atau kolom berbeda -> 0
+            if "doesn't exist" in str(ex) or "Unknown column" in str(ex):
+                return -1
+            raise
+
     try:
         conn = get_db_connection()
         if conn is None:
@@ -1663,23 +1822,41 @@ def get_detections_stats():
         
         cursor = conn.cursor(dictionary=True)
         
-        # Total detections
-        cursor.execute("SELECT COUNT(*) as total FROM Diagnosa")
-        total_result = cursor.fetchone()
-        total: int = total_result['total'] if total_result else 0  # type: ignore
-        
-        # Recent count (last 7 days)
-        cursor.execute("""
-            SELECT COUNT(*) as recent_count
-            FROM Diagnosa
-            WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-        """)
-        recent_result = cursor.fetchone()
-        recent_count: int = recent_result['recent_count'] if recent_result else 0  # type: ignore
-        
+        # Primary: DetectionHistory
+        total = _query_count("DetectionHistory")
+        recent = _query_count("DetectionHistory", "WHERE detection_date >= DATE_SUB(NOW(), INTERVAL 7 DAY)")
+        by_disease = {}
+        try:
+            if total != -1:
+                cursor.execute("SELECT disease_name, COUNT(*) as cnt FROM DetectionHistory GROUP BY disease_name")
+                by_disease = {row['disease_name']: row['cnt'] for row in cursor.fetchall()}  # type: ignore
+        except Exception:
+            by_disease = {}
+
+        # Fallback ke Diagnosa jika DetectionHistory belum ada / kosong dan Diagnosa ada
+        if total == -1:
+            total = _query_count("Diagnosa")
+            recent = _query_count("Diagnosa", "WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)")
+            if total == -1:
+                total = 0
+            if recent == -1:
+                recent = 0
+        else:
+            # Jika DetectionHistory ada, tambahkan count legacy Diagnosa sebagai info tambahan (tidak double hitung primary)
+            legacy_total = _query_count("Diagnosa")
+            if legacy_total > 0:
+                # Simpan sebagai field terpisah agar tidak membingungkan
+                by_disease["_legacy_Diagnosa"] = legacy_total
+
+        if total == -1:
+            total = 0
+        if recent == -1:
+            recent = 0
+
         return jsonify({
             "total": total,
-            "recent_count": recent_count
+            "recent_count": recent,
+            "by_disease": by_disease
         }), 200
         
     except Exception as e:

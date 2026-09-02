@@ -12,10 +12,9 @@ USE plantvision_db;
 -- 1. Backup existing User table (optional, skip jika sudah ada user_id)
 -- ALTER TABLE User CHANGE COLUMN id user_id INT AUTO_INCREMENT;
 
--- 2. Drop dan Recreate DetectionHistory dengan schema yang benar
-DROP TABLE IF EXISTS DetectionHistory;
-
-CREATE TABLE DetectionHistory (
+-- 2. SAFE: Buat DetectionHistory jika belum ada (TIDAK DROP agar history tidak hilang)
+-- Untuk reset paksa, jalankan manual: DROP TABLE DetectionHistory; lalu re-run script ini
+CREATE TABLE IF NOT EXISTS DetectionHistory (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     image_path VARCHAR(255) NOT NULL,
@@ -32,9 +31,10 @@ CREATE TABLE DetectionHistory (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 3. (Optional) Migrate data dari DaunJeruk+Diagnosa ke DetectionHistory
--- Uncomment jika ingin migrate data lama:
+-- AMAN: INSERT IGNORE agar tidak duplikat saat re-run. Uncomment jika ingin migrate data lama:
+-- Pastikan tabel DaunJeruk & Diagnosa masih ada sebelum uncomment.
 -- 
--- INSERT INTO DetectionHistory (user_id, image_path, disease_name, confidence, severity, description, detection_date)
+-- INSERT IGNORE INTO DetectionHistory (user_id, image_path, disease_name, confidence, severity, description, detection_date)
 -- SELECT 
 --     d.user_id,
 --     d.citra,

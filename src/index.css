@@ -3710,10 +3710,16 @@ h1, h2, h3, h4, h5, h6 {
     z-index: 50 !important;
     overflow: hidden;
   }
+
+  aside.sidebar-collapsible.sidebar-pinned {
+    box-shadow: 2px 0 8px rgba(0,0,0,0.06) !important;
+  }
   
   /* Main content dengan margin yang menyesuaikan sidebar width */
   main.sidebar-content {
     transition: margin-left 0.2s ease !important;
+    width: calc(100% - var(--sidebar-width, 80px)) !important;
+    max-width: calc(100% - var(--sidebar-width, 80px)) !important;
   }
   
   /* Pastikan text tidak terlihat saat collapsed */

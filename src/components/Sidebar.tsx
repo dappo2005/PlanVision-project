@@ -20,6 +20,8 @@ import {
   LogOut,
   X,
   History,
+  Pin,
+  PinOff,
 } from "lucide-react";
 import React from "react";
 
@@ -51,11 +53,34 @@ export default function Sidebar({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userRole, setUserRole] = useState<string>('user');
   const [isHovered, setIsHovered] = useState(false);
+  const [isPinned, setIsPinned] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('sidebar_pinned') === 'true';
+    } catch { return false; }
+  });
 
-  // Set initial sidebar width
+  // Derived: sidebar expanded jika pinned atau hovered
+  const isExpanded = isPinned || isHovered;
+
+  // Set initial sidebar width based on pinned state
   useEffect(() => {
-    document.documentElement.style.setProperty('--sidebar-width', '80px');
+    const w = isPinned ? '260px' : '80px';
+    document.documentElement.style.setProperty('--sidebar-width', w);
   }, []);
+
+  // Persist pinned state
+  useEffect(() => {
+    try { localStorage.setItem('sidebar_pinned', String(isPinned)); } catch {}
+    const w = isExpanded ? '260px' : '80px';
+    document.documentElement.style.setProperty('--sidebar-width', w);
+    onHoverChange?.(isExpanded);
+  }, [isPinned]);
+
+  // Keep CSS var in sync when expanded changes via hover
+  useEffect(() => {
+    const w = isExpanded ? '260px' : '80px';
+    document.documentElement.style.setProperty('--sidebar-width', w);
+  }, [isExpanded]);
 
   // Check user role
   useEffect(() => {
@@ -168,30 +193,33 @@ export default function Sidebar({
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
-  // Desktop Sidebar dengan hover collapse/expand
+  // Desktop Sidebar dengan hover collapse/expand + pin/unpin
   const DesktopSidebar = () => (
     <aside 
-      className="hidden lg:flex fixed left-0 top-0 h-screen bg-white border-r border-gray-200 flex-col z-50 shadow-sm sidebar-collapsible"
+      className={`hidden lg:flex fixed left-0 top-0 h-screen bg-white border-r border-gray-200 flex-col z-50 shadow-sm sidebar-collapsible ${isPinned ? 'sidebar-pinned' : ''}`}
       onMouseEnter={() => {
-        setIsHovered(true);
-        onHoverChange?.(true);
-        document.documentElement.style.setProperty('--sidebar-width', '260px');
+        if (!isPinned) {
+          setIsHovered(true);
+          onHoverChange?.(true);
+        }
       }}
       onMouseLeave={() => {
-        setIsHovered(false);
-        onHoverChange?.(false);
-        document.documentElement.style.setProperty('--sidebar-width', '80px');
+        if (!isPinned) {
+          setIsHovered(false);
+          onHoverChange?.(false);
+        }
       }}
       style={{
-        width: isHovered ? '260px' : '80px',
+        width: isExpanded ? '260px' : '80px',
         transition: 'width 0.2s ease',
       }}
     >
-      {/* Logo */}
-      <div className="flex items-center justify-center h-16 border-b border-gray-200 overflow-hidden">
+      {/* Logo + Pin toggle */}
+      <div className="flex items-center h-16 border-b border-gray-200 overflow-hidden px-2 gap-2">
         <button
           onClick={onNavigateToDashboard}
-          className="flex items-center justify-center group w-full"
+          className="flex items-center justify-center group flex-1 min-w-0"
+          title="Ke Dashboard"
         >
           <img 
             src="/images/plantvision-logo.png" 
@@ -199,10 +227,22 @@ export default function Sidebar({
             className="h-10 w-auto group-hover:scale-110 transition-transform"
           />
         </button>
+        {/* Pin / Unpin button - only visible when expanded */}
+        <button
+          onClick={() => setIsPinned(v => !v)}
+          className={`flex-shrink-0 w-8 h-8 rounded-lg border flex items-center justify-center transition-all
+            ${isPinned ? 'bg-[#2ECC71] text-white border-[#2ECC71] shadow-sm' : 'bg-white text-gray-500 border-gray-200 hover:bg-green-50 hover:text-[#2ECC71] hover:border-green-200'}
+            ${isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          title={isPinned ? 'Lepas pin (hover mode)' : 'Pin sidebar (tetap terbuka)'}
+          aria-label={isPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+          type="button"
+        >
+          {isPinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
+        </button>
       </div>
 
       {/* Navigation Items */}
-      <nav className="flex-1 overflow-y-auto py-4">
+      <nav className="flex-1 overflow-y-auto py-4 px-1">
         <div className="space-y-1">
           {navItems.map((item, index) => {
             const active = isActive(item.path);
@@ -215,19 +255,19 @@ export default function Sidebar({
                     ? 'bg-[#2ECC71] text-white shadow-sm'
                     : 'text-gray-700 hover:bg-green-50 hover:text-[#2ECC71]'
                 } ${
-                  !isHovered 
+                  !isExpanded 
                     ? 'justify-center py-3' 
                     : 'text-left gap-3 px-4 py-3'
                 }`}
-                title={!isHovered ? item.label : undefined}
+                title={!isExpanded ? item.label : undefined}
               >
                 <span className={`flex-shrink-0 flex items-center justify-center ${
-                  !isHovered ? 'w-full' : ''
+                  !isExpanded ? 'w-full' : ''
                 }`}>
                   {item.icon}
                 </span>
-                {isHovered && (
-                  <span className="whitespace-nowrap">
+                {isExpanded && (
+                  <span className="whitespace-nowrap text-sm">
                     {item.label}
                   </span>
                 )}
@@ -238,15 +278,15 @@ export default function Sidebar({
       </nav>
 
       {/* User Info & Logout */}
-      <div className="border-t border-gray-200 p-4 space-y-3 overflow-hidden">
+      <div className="border-t border-gray-200 p-3 space-y-3 overflow-hidden">
         {/* Role Badge */}
         <div className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 ${
-          !isHovered ? 'justify-center' : ''
+          !isExpanded ? 'justify-center' : ''
         }`}>
           {isSuperadmin ? (
             <>
               <div className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0"></div>
-              {isHovered && (
+              {isExpanded && (
                 <span className="text-xs font-medium text-purple-700 whitespace-nowrap">
                   Superadmin
                 </span>
@@ -255,7 +295,7 @@ export default function Sidebar({
           ) : (
             <>
               <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-              {isHovered && (
+              {isExpanded && (
                 <span className="text-xs font-medium text-green-700 whitespace-nowrap">
                   Petani
                 </span>
@@ -269,14 +309,14 @@ export default function Sidebar({
           variant="outline"
           onClick={onLogout}
           className={`w-full border-gray-300 hover:bg-red-50 hover:text-red-600 hover:border-red-300 ${
-            !isHovered 
+            !isExpanded 
               ? 'justify-center px-2' 
               : 'justify-start px-4'
           }`}
-          title={!isHovered ? 'Keluar' : undefined}
+          title={!isExpanded ? 'Keluar' : undefined}
         >
           <LogOut className="w-4 h-4 flex-shrink-0 flex items-center justify-center" />
-          {isHovered && (
+          {isExpanded && (
             <span className="ml-2 whitespace-nowrap">
               Keluar
             </span>

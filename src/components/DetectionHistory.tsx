@@ -37,6 +37,8 @@ const DetectionHistory: React.FC = () => {
   const userData = JSON.parse(localStorage.getItem("user") || "{}");
   const userId = userData.user_id;
 
+  const [warning, setWarning] = useState<string | null>(null);
+
   useEffect(() => {
     if (!userId) {
       toast.error("Silakan login terlebih dahulu");
@@ -57,7 +59,17 @@ const DetectionHistory: React.FC = () => {
 
       if (response.ok) {
         setHistory(data.history || []);
+        if (data.warning) {
+          setWarning(data.warning);
+          toast.warning(data.warning);
+        } else if (data.source === "mock") {
+          setWarning("Mode mock aktif (USE_MOCK_DB=1): history hanya in-memory dan akan hilang saat backend restart. Set USE_MOCK_DB=0 untuk pakai MySQL.");
+        } else {
+          setWarning(null);
+        }
       } else {
+        // Graceful: jika 404 karena user_id salah, tampilkan warning spesifik
+        if (data.warning) setWarning(data.warning);
         toast.error(data.error || "Gagal memuat riwayat deteksi");
       }
     } catch (error) {
@@ -133,6 +145,12 @@ const DetectionHistory: React.FC = () => {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
+        {warning && (
+          <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-800">{warning}</p>
+          </div>
+        )}
         {/* Filter */}
         <div className="mb-6 flex items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-green-100">
           <span className="text-sm font-medium text-gray-700">Filter Severity:</span>
@@ -143,9 +161,10 @@ const DetectionHistory: React.FC = () => {
                 onClick={() => setFilterSeverity(severity)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   filterSeverity === severity
-                    ? "bg-green-600 text-white shadow-md"
+                    ? "text-white shadow-md"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
+                style={filterSeverity === severity ? { backgroundColor: '#16a34a' } : {}}
               >
                 {severity === "all" ? "Semua" : severity.charAt(0).toUpperCase() + severity.slice(1)}
               </button>
@@ -164,18 +183,27 @@ const DetectionHistory: React.FC = () => {
           <div className="bg-white rounded-xl shadow-sm border border-green-100 p-12 text-center">
             <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-700 mb-2">Belum ada riwayat deteksi</h3>
-            <p className="text-gray-500 mb-6">
+            <p className="text-gray-500 mb-2">
               {filterSeverity !== "all" 
                 ? `Tidak ada hasil deteksi dengan severity ${filterSeverity}` 
                 : "Lakukan deteksi penyakit untuk melihat riwayat"}
             </p>
-            <button
-              onClick={() => navigate("/disease-detector")}
-              className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 
-                transition-all duration-200 shadow-md hover:shadow-lg"
-            >
-              Mulai Deteksi
-            </button>
+            <p className="text-xs text-gray-400 mb-6">User ID: {userId || "(tidak ada - silakan login ulang)"} {warning ? `• ${warning}` : ""}</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => navigate("/disease-detector")}
+                className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 
+                  transition-all duration-200 shadow-md hover:shadow-lg"
+              >
+                Mulai Deteksi
+              </button>
+              <button
+                onClick={loadHistory}
+                className="px-6 py-3 bg-white border border-green-300 text-green-700 rounded-xl hover:bg-green-50 transition-all"
+              >
+                Muat Ulang
+              </button>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
