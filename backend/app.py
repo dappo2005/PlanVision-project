@@ -46,21 +46,22 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Load ML model at startup
 # --- INTEGRATION: Load the model (supports both CNN and MobileNetV2) ---
-MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'citrus_cnn_v1.h5')
+MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'citrus_efficientnet_finetuned.h5')
 MODEL = None
 MODEL_TYPE = None  # Will be auto-detected: 'cnn' or 'mobilenetv2'
 CLASS_NAMES = ['Black spot', 'Canker', 'Greening', 'Healthy', 'Melanose']
 IMAGE_SIZE = 256  # Match the training size
 
 def detect_model_type(model):
-    """Auto-detect if model is MobileNetV2-based or custom CNN"""
+    """Auto-detect model architecture: mobilenetv2 / efficientnet / cnn"""
     try:
-        # Check if model contains MobileNetV2 layers
-        for layer in model.layers:
-            if 'mobilenetv2' in layer.name.lower() or 'mobilenet' in layer.name.lower():
-                return 'mobilenetv2'
+        names = " ".join(layer.name.lower() for layer in model.layers)
+        if 'mobilenetv2' in names or 'mobilenet' in names:
+            return 'mobilenetv2'
+        if 'efficientnet' in names:
+            return 'efficientnet'
         return 'cnn'
-    except:
+    except Exception:
         return 'cnn'
 
 def load_model_at_startup():
