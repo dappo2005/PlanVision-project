@@ -372,21 +372,27 @@ export default function Contact({ onLogout, onNavigateToDashboard }: ContactProp
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <Button variant="outline" className="w-full justify-start">
-                    <Instagram className="w-4 h-4 mr-2" />
-                    @plantvision.official
+                  <Button variant="outline" className="w-full justify-start" asChild>
+                    <a href="https://instagram.com/dafa_mkal" target="_blank" rel="noopener noreferrer">
+                      <Instagram className="w-4 h-4 mr-2" />
+                      @dafa_mkal
+                    </a>
                   </Button>
-                  <Button variant="outline" className="w-full justify-start">
+                  <Button variant="outline" className="w-full justify-start opacity-60 cursor-not-allowed pointer-events-none" aria-disabled="true">
                     <Linkedin className="w-4 h-4 mr-2" />
                     PlantVision Indonesia
                   </Button>
-                  <Button variant="outline" className="w-full justify-start">
-                    <Github className="w-4 h-4 mr-2" />
-                    github.com/plantvision
+                  <Button variant="outline" className="w-full justify-start" asChild>
+                    <a href="https://github.com/plantvision" target="_blank" rel="noopener noreferrer">
+                      <Github className="w-4 h-4 mr-2" />
+                      github.com/plantvision
+                    </a>
                   </Button>
-                  <Button variant="outline" className="w-full justify-start">
-                    <Mail className="w-4 h-4 mr-2" />
-                    plantvision@email.com
+                  <Button variant="outline" className="w-full justify-start" asChild>
+                    <a href="mailto:plantvision@email.com">
+                      <Mail className="w-4 h-4 mr-2" />
+                      plantvision@email.com
+                    </a>
                   </Button>
                 </CardContent>
               </Card>

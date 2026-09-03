@@ -4,14 +4,23 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui
 import { Badge } from "../ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { 
-  BarChart3, Users, MessageSquare, Newspaper, TrendingUp, 
-  Activity, Shield, Settings, ArrowLeft, Eye, Edit, Trash2,
+  BarChart3, Users, MessageSquare, Newspaper, 
+  Activity, Shield, ArrowLeft, Eye, Edit, Trash2,
   Plus, Search, Filter, Download, Calendar, Clock, CheckCircle2,
-  XCircle, AlertCircle, Star, UserPlus, FileText, PieChart
+  XCircle, AlertCircle, Star, UserPlus, FileText
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "../ui/dialog";
 import AdminFeedbackDashboard from "./AdminFeedbackDashboard";
 
 interface AdminDashboardProps {
@@ -27,6 +36,14 @@ interface DashboardStats {
   activeUsers: number;
   pendingFeedbacks: number;
   recentActivity: any[];
+}
+
+interface ActivityItem {
+  type: 'detection' | 'new_user';
+  description: string;
+  user_nama: string;
+  user_email: string;
+  timestamp: string | null;
 }
 
 interface User {
@@ -49,6 +66,9 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+
+  // Activities state
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
   
   // Users management state
   const [users, setUsers] = useState<User[]>([]);
@@ -57,6 +77,96 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
   const [roleFilter, setRoleFilter] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
+  // User Modals State
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  const [addForm, setAddForm] = useState({
+    nama: '',
+    email: '',
+    username: '',
+    password: '',
+    phone: '',
+    role: 'user',
+    status: 'aktif'
+  });
+
+  const [editForm, setEditForm] = useState({
+    nama: '',
+    email: '',
+    username: '',
+    phone: '',
+    role: 'user',
+    status: 'aktif'
+  });
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_URL}/api/admin/users`, {
+        method: 'POST',
+        headers: fetchHeaders,
+        body: JSON.stringify(addForm)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("User berhasil dibuat!");
+        setShowAddModal(false);
+        setAddForm({ nama: '', email: '', username: '', password: '', phone: '', role: 'user', status: 'aktif' });
+        loadUsers();
+      } else {
+        toast.error(data.error || "Gagal membuat user");
+      }
+    } catch (err) {
+      toast.error("Gagal terhubung ke server");
+    }
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    try {
+      const res = await fetch(`${API_URL}/api/admin/users/${selectedUser.user_id}`, {
+        method: 'PUT',
+        headers: fetchHeaders,
+        body: JSON.stringify(editForm)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("User berhasil diperbarui!");
+        setShowEditModal(false);
+        loadUsers();
+      } else {
+        toast.error(data.error || "Gagal memperbarui user");
+      }
+    } catch (err) {
+      toast.error("Gagal terhubung ke server");
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    try {
+      const res = await fetch(`${API_URL}/api/admin/users/${selectedUser.user_id}`, {
+        method: 'DELETE',
+        headers: fetchHeaders
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("User berhasil dihapus!");
+        setShowDeleteModal(false);
+        loadUsers();
+      } else {
+        toast.error(data.error || "Gagal menghapus user");
+      }
+    } catch (err) {
+      toast.error("Gagal terhubung ke server");
+    }
+  };
 
   useEffect(() => {
     // Load admin data
@@ -88,12 +198,25 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
     }
   }, [navigate]);
 
-  // Load stats when adminId is available
+  // Load stats & activities when adminId is available
   useEffect(() => {
     if (adminId && isAdmin) {
       loadDashboardStats();
+      loadActivities();
     }
   }, [adminId, isAdmin]);
+
+  const loadActivities = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/admin/activities`, { headers: fetchHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        setActivities(data.activities || []);
+      }
+    } catch (e) {
+      console.error('Error loading activities:', e);
+    }
+  };
 
   // Load users when tab changes to users
   useEffect(() => {
@@ -196,8 +319,8 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+        <div className="container mx-auto px-4 py-4 pl-16 lg:pl-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-4">
               <Button
                 variant="ghost"
@@ -209,15 +332,15 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
                 Kembali
               </Button>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                  <Shield className="w-6 h-6 text-purple-600" />
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
+                  <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
                   Admin Panel
                 </h1>
                 <p className="text-sm text-gray-500 mt-1">Kelola seluruh sistem PlantVision</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+              <Badge variant="outline" className="hidden sm:inline-flex bg-purple-50 text-purple-700 border-purple-200">
                 <Shield className="w-3 h-3 mr-1" />
                 Administrator
               </Badge>
@@ -232,28 +355,37 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
       {/* Main Content */}
       <div className="container mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 lg:grid-cols-6">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
-              <span className="hidden sm:inline">Overview</span>
-            </TabsTrigger>
-            <TabsTrigger value="users" className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              <span className="hidden sm:inline">Users</span>
-            </TabsTrigger>
-            <TabsTrigger value="feedbacks" className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4" />
-              <span className="hidden sm:inline">Feedbacks</span>
-            </TabsTrigger>
-            <TabsTrigger value="news" className="flex items-center gap-2">
-              <Newspaper className="w-4 h-4" />
-              <span className="hidden sm:inline">Berita</span>
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" />
-              <span className="hidden sm:inline">Analytics</span>
-            </TabsTrigger>
-          </TabsList>
+          <TabsList className="inline-flex w-full sm:w-auto items-center justify-center gap-1 p-1.5 bg-gray-100 rounded-2xl border border-gray-200 mx-auto">
+              <TabsTrigger 
+                value="overview" 
+                className="inline-flex items-center justify-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all data-[state=active]:bg-purple-500 data-[state=active]:text-white text-gray-700 hover:text-gray-900 whitespace-nowrap"
+              >
+                <BarChart3 className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Overview</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="users" 
+                className="inline-flex items-center justify-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all data-[state=active]:bg-purple-500 data-[state=active]:text-white text-gray-700 hover:text-gray-900 whitespace-nowrap"
+              >
+                <Users className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Users</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="feedbacks" 
+                className="inline-flex items-center justify-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all data-[state=active]:bg-purple-500 data-[state=active]:text-white text-gray-700 hover:text-gray-900 whitespace-nowrap"
+              >
+                <MessageSquare className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Feedbacks</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="news" 
+                className="inline-flex items-center justify-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all data-[state=active]:bg-purple-500 data-[state=active]:text-white text-gray-700 hover:text-gray-900 whitespace-nowrap"
+              >
+                <Newspaper className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Berita</span>
+              </TabsTrigger>
+            </TabsList>
+
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
@@ -349,53 +481,59 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
                         <Plus className="w-5 h-5" />
                         <span className="text-xs">Tambah Berita</span>
                       </Button>
-                      <Button
-                        variant="outline"
-                        className="flex flex-col items-center gap-2 h-auto py-4"
-                        onClick={() => setActiveTab("analytics")}
-                      >
-                        <PieChart className="w-5 h-5" />
-                        <span className="text-xs">Lihat Analytics</span>
-                      </Button>
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Recent Activity */}
+                {/* Recent Activity - Dynamic */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Recent Activity</CardTitle>
-                    <CardDescription>Aktivitas terbaru di sistem</CardDescription>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>Recent Activity</CardTitle>
+                        <CardDescription>Aktivitas terbaru di sistem (real-time)</CardDescription>
+                      </div>
+                      <button
+                        onClick={loadActivities}
+                        className="text-xs text-purple-600 hover:text-purple-800 font-medium border border-purple-200 px-3 py-1.5 rounded-lg hover:bg-purple-50 transition-all"
+                      >
+                        Refresh
+                      </button>
+                    </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <Users className="w-5 h-5 text-blue-600" />
+                    <div className="space-y-3">
+                      {activities.length === 0 ? (
+                        <div className="text-center py-6 text-gray-400">
+                          <Activity className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                          <p className="text-sm">Belum ada aktivitas</p>
                         </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">User baru terdaftar</p>
-                          <p className="text-xs text-gray-500">2 jam yang lalu</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                        <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                          <MessageSquare className="w-5 h-5 text-orange-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">Feedback baru diterima</p>
-                          <p className="text-xs text-gray-500">5 jam yang lalu</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                          <Activity className="w-5 h-5 text-green-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">Deteksi penyakit baru</p>
-                          <p className="text-xs text-gray-500">1 hari yang lalu</p>
-                        </div>
-                      </div>
+                      ) : activities.map((act, i) => {
+                        const isDetection = act.type === 'detection';
+                        const timeLabel = act.timestamp ? (() => {
+                          const diff = Date.now() - new Date(act.timestamp).getTime();
+                          const mins = Math.floor(diff / 60000);
+                          const hrs = Math.floor(mins / 60);
+                          const days = Math.floor(hrs / 24);
+                          if (mins < 60) return `${mins} menit lalu`;
+                          if (hrs < 24) return `${hrs} jam lalu`;
+                          return `${days} hari lalu`;
+                        })() : '-';
+                        return (
+                          <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${isDetection ? 'bg-green-100' : 'bg-blue-100'}`}>
+                              {isDetection
+                                ? <Activity className="w-4 h-4 text-green-600" />
+                                : <Users className="w-4 h-4 text-blue-600" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{act.user_nama}</p>
+                              <p className="text-xs text-gray-500 truncate">{act.description}</p>
+                            </div>
+                            <span className="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">{timeLabel}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>
@@ -412,7 +550,7 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
                     <CardTitle>User Management</CardTitle>
                     <CardDescription>Kelola semua pengguna sistem ({stats?.totalUsers || 0} users)</CardDescription>
                   </div>
-                  <Button className="flex items-center gap-2" disabled>
+                  <Button className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white" onClick={() => setShowAddModal(true)}>
                     <UserPlus className="w-4 h-4" />
                     Tambah User
                   </Button>
@@ -461,8 +599,8 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
                     </div>
                   ) : (
                     <>
-                      <div className="border rounded-lg overflow-hidden">
-                        <table className="w-full">
+                      <div className="border rounded-lg overflow-hidden overflow-x-auto">
+                        <table className="w-full min-w-[900px]">
                           <thead className="bg-gray-50 border-b">
                             <tr>
                               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
@@ -506,13 +644,45 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
                                 </td>
                                 <td className="px-4 py-3">
                                   <div className="flex items-center justify-center gap-2">
-                                    <Button variant="ghost" size="sm" disabled>
-                                      <Eye className="w-4 h-4" />
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      title="Detail User"
+                                      onClick={() => {
+                                        setSelectedUser(user);
+                                        setShowDetailModal(true);
+                                      }}
+                                    >
+                                      <Eye className="w-4 h-4 text-blue-600" />
                                     </Button>
-                                    <Button variant="ghost" size="sm" disabled>
-                                      <Edit className="w-4 h-4" />
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      title="Edit User"
+                                      onClick={() => {
+                                        setSelectedUser(user);
+                                        setEditForm({
+                                          nama: user.nama,
+                                          email: user.email,
+                                          username: user.username,
+                                          phone: user.phone || '',
+                                          role: user.role,
+                                          status: user.status
+                                        });
+                                        setShowEditModal(true);
+                                      }}
+                                    >
+                                      <Edit className="w-4 h-4 text-amber-600" />
                                     </Button>
-                                    <Button variant="ghost" size="sm" disabled>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      title="Hapus User"
+                                      onClick={() => {
+                                        setSelectedUser(user);
+                                        setShowDeleteModal(true);
+                                      }}
+                                    >
                                       <Trash2 className="w-4 h-4 text-red-500" />
                                     </Button>
                                   </div>
@@ -589,40 +759,250 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
               </CardContent>
             </Card>
           </TabsContent>
-
-          {/* Analytics Tab */}
-          <TabsContent value="analytics" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Analytics & Reports</CardTitle>
-                <CardDescription>Statistik dan laporan sistem</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-gray-500">
-                  <TrendingUp className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p>Analytics akan segera tersedia</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Settings Tab */}
-          <TabsContent value="settings" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>System Settings</CardTitle>
-                <CardDescription>Pengaturan sistem</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-gray-500">
-                  <Settings className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p>Settings akan segera tersedia</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
       </div>
+
+      {/* User Detail Dialog */}
+      <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Detail User</DialogTitle>
+            <DialogDescription>Informasi lengkap akun pengguna</DialogDescription>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-3 py-2 text-sm">
+              <div className="flex justify-between border-b pb-2">
+                <span className="text-gray-500 font-medium">User ID</span>
+                <span className="text-gray-900 font-semibold">{selectedUser.user_id}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="text-gray-500 font-medium">Nama</span>
+                <span className="text-gray-900">{selectedUser.nama}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="text-gray-500 font-medium">Email</span>
+                <span className="text-gray-900">{selectedUser.email}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="text-gray-500 font-medium">Username</span>
+                <span className="text-gray-900">{selectedUser.username}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="text-gray-500 font-medium">No. Telepon</span>
+                <span className="text-gray-900">{selectedUser.phone || '-'}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="text-gray-500 font-medium">Role</span>
+                <Badge variant={selectedUser.role === 'superadmin' ? 'default' : 'secondary'}>
+                  {selectedUser.role}
+                </Badge>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="text-gray-500 font-medium">Status</span>
+                <Badge variant={selectedUser.status === 'aktif' ? 'default' : 'secondary'}>
+                  {selectedUser.status}
+                </Badge>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="text-gray-500 font-medium">Tanggal Daftar</span>
+                <span className="text-gray-900">
+                  {selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleString('id-ID') : '-'}
+                </span>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDetailModal(false)}>Tutup</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>Perbarui data dan hak akses pengguna</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdateUser} className="space-y-4 py-2">
+            <div>
+              <Label htmlFor="edit-nama">Nama Lengkap</Label>
+              <Input
+                id="edit-nama"
+                value={editForm.nama}
+                onChange={(e) => setEditForm({ ...editForm, nama: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-username">Username</Label>
+              <Input
+                id="edit-username"
+                value={editForm.username}
+                onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-phone">No. Telepon</Label>
+              <Input
+                id="edit-phone"
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-role">Role</Label>
+                <select
+                  id="edit-role"
+                  className="w-full mt-1 p-2 border rounded-md text-sm"
+                  value={editForm.role}
+                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                >
+                  <option value="user">User</option>
+                  <option value="superadmin">Superadmin</option>
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="edit-status">Status Akun</Label>
+                <select
+                  id="edit-status"
+                  className="w-full mt-1 p-2 border rounded-md text-sm"
+                  value={editForm.status}
+                  onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                >
+                  <option value="aktif">Aktif</option>
+                  <option value="nonaktif">Nonaktif</option>
+                </select>
+              </div>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button type="button" variant="outline" onClick={() => setShowEditModal(false)}>Batal</Button>
+              <Button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white">Simpan Perubahan</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Konfirmasi Hapus User</DialogTitle>
+            <DialogDescription>
+              Apakah Anda yakin ingin menghapus akun user <strong>{selectedUser?.nama}</strong> ({selectedUser?.email})? Tindakan ini tidak dapat dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowDeleteModal(false)}>Batal</Button>
+            <Button variant="destructive" onClick={handleDeleteUser}>Hapus User</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add User Dialog */}
+      <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tambah User Baru</DialogTitle>
+            <DialogDescription>Buat akun baru secara manual oleh Admin</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateUser} className="space-y-4 py-2">
+            <div>
+              <Label htmlFor="add-nama">Nama Lengkap</Label>
+              <Input
+                id="add-nama"
+                value={addForm.nama}
+                onChange={(e) => setAddForm({ ...addForm, nama: e.target.value })}
+                placeholder="cth: Budi Santoso"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="add-email">Email</Label>
+              <Input
+                id="add-email"
+                type="email"
+                value={addForm.email}
+                onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                placeholder="cth: budi@example.com"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="add-username">Username</Label>
+              <Input
+                id="add-username"
+                value={addForm.username}
+                onChange={(e) => setAddForm({ ...addForm, username: e.target.value })}
+                placeholder="cth: budisantoso"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="add-password">Password</Label>
+              <Input
+                id="add-password"
+                type="password"
+                value={addForm.password}
+                onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
+                placeholder="Minimal 6 karakter"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="add-phone">No. Telepon (Opsional)</Label>
+              <Input
+                id="add-phone"
+                value={addForm.phone}
+                onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
+                placeholder="cth: 08123456789"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="add-role">Role</Label>
+                <select
+                  id="add-role"
+                  className="w-full mt-1 p-2 border rounded-md text-sm"
+                  value={addForm.role}
+                  onChange={(e) => setAddForm({ ...addForm, role: e.target.value })}
+                >
+                  <option value="user">User</option>
+                  <option value="superadmin">Superadmin</option>
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="add-status">Status Akun</Label>
+                <select
+                  id="add-status"
+                  className="w-full mt-1 p-2 border rounded-md text-sm"
+                  value={addForm.status}
+                  onChange={(e) => setAddForm({ ...addForm, status: e.target.value })}
+                >
+                  <option value="aktif">Aktif</option>
+                  <option value="nonaktif">Nonaktif</option>
+                </select>
+              </div>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button type="button" variant="outline" onClick={() => setShowAddModal(false)}>Batal</Button>
+              <Button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white">Buat User</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

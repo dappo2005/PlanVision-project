@@ -248,8 +248,9 @@ export default function Navbar({
             {variant === "authenticated" ? (
               <>
                 {/* Role Badge - Rapi dengan text + Debug */}
-                <div 
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border flex-shrink-0 cursor-pointer hover:bg-gray-50"
+                <button 
+                  type="button"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border flex-shrink-0 cursor-pointer hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2ECC71]"
                   onClick={() => {
                     console.log('=== DEBUG ROLE ===');
                     console.log('userRole state:', userRole);
@@ -270,7 +271,7 @@ export default function Navbar({
                       <span className="text-green-700">Petani ({userRole})</span>
                     </>
                   )}
-                </div>
+                </button>
                 <Button
                   onClick={onNavigateToDetector}
                   className="bg-gradient-to-r from-[#2ECC71] to-[#27AE60] hover:from-[#27AE60] hover:to-[#229954] text-white shadow-md hover:shadow-lg transition-all text-sm"
@@ -300,7 +301,7 @@ export default function Navbar({
           {/* Mobile Menu Trigger */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild className="lg:hidden">
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" aria-label="Buka menu navigasi">
                 <Menu className="w-6 h-6 text-gray-700" />
               </Button>
             </SheetTrigger>

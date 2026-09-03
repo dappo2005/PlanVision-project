@@ -333,6 +333,7 @@ export default function Sidebar({
         <Button 
           variant="ghost" 
           size="icon"
+          aria-label="Buka menu navigasi"
           className="fixed top-4 left-4 z-50 bg-white shadow-md lg:hidden"
         >
           <Menu className="w-6 h-6 text-gray-700" />

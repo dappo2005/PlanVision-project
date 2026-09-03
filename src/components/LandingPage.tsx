@@ -323,10 +323,15 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-green-50 relative overflow-hidden">
       {/* Decorative Orange Elements */}
-      <div className="fixed top-20 right-10 w-32 h-32 orange-slice opacity-5 pointer-events-none" />
-      <div className="fixed bottom-32 left-10 w-24 h-24 orange-slice opacity-5 pointer-events-none" />
-      <div className="fixed top-1/2 right-1/4 w-16 h-16 orange-slice opacity-5 pointer-events-none" />
+      <div aria-hidden="true" className="fixed top-20 right-10 w-32 h-32 orange-slice opacity-5 pointer-events-none" />
+      <div aria-hidden="true" className="fixed bottom-32 left-10 w-24 h-24 orange-slice opacity-5 pointer-events-none" />
+      <div aria-hidden="true" className="fixed top-1/2 right-1/4 w-16 h-16 orange-slice opacity-5 pointer-events-none" />
       
+      {/* Skip link */}
+      <a href="#beranda" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[60] focus:bg-[#2ECC71] focus:text-white focus:px-4 focus:py-2 focus:rounded-md">
+        Lang ke konten utama
+      </a>
+
       {/* Login & Registration Dialog */}
       <Dialog open={showLoginDialog} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
@@ -360,7 +365,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
               <form onSubmit={handleLogin} className="space-y-4">
               {/* Error Message */}
               {loginError && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+                <div aria-live="polite" className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
                 <AlertCircle className="w-4 h-4" />
                 <span>{loginError}</span>
                 </div>
@@ -408,7 +413,8 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
                 <button
                   type="button"
                   onClick={() => setShowLoginPassword(!showLoginPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  aria-label={showLoginPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2ECC71]"
                 >
                   {showLoginPassword ? (
                   <EyeOff className="w-4 h-4" />
@@ -493,7 +499,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
               <form onSubmit={handleRegister} className="space-y-4">
                 {/* Error Message */}
                 {registerError && (
-                  <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+                  <div aria-live="polite" className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
                     <AlertCircle className="w-4 h-4" />
                     <span>{registerError}</span>
                   </div>
@@ -501,7 +507,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
 
                 {/* Success Message */}
                 {registerSuccess && (
-                  <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-md text-green-700 text-sm">
+                  <div aria-live="polite" className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-md text-green-700 text-sm">
                     <CheckCircle2 className="w-4 h-4" />
                     <span>Registrasi berhasil! Mengalihkan ke halaman masuk...</span>
                   </div>
@@ -587,7 +593,8 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
                     <button
                       type="button"
                       onClick={() => setShowRegisterPassword(!showRegisterPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      aria-label={showRegisterPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2ECC71]"
                     >
                       {showRegisterPassword ? (
                         <EyeOff className="w-4 h-4" />
@@ -624,7 +631,8 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      aria-label={showConfirmPassword ? "Sembunyikan konfirmasi kata sandi" : "Tampilkan konfirmasi kata sandi"}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2ECC71]"
                     >
                       {showConfirmPassword ? (
                         <EyeOff className="w-4 h-4" />
@@ -744,10 +752,10 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       </Dialog>
 
       {/* Hero Section */}
-      <section id="beranda" className="relative overflow-hidden citrus-pattern">
+      <section id="beranda" className="relative overflow-hidden citrus-pattern scroll-mt-16">
         <div className="absolute inset-0 bg-gradient-to-br from-[#2ECC71]/10 via-transparent to-[#F39C12]/10" />
-        <div className="absolute top-10 right-20 w-40 h-40 orange-slice opacity-10 animate-pulse" style={{ animationDuration: '4s' }} />
-        <div className="absolute bottom-10 left-20 w-28 h-28 orange-slice opacity-10 animate-pulse" style={{ animationDuration: '3s', animationDelay: '1s' }} />
+        <div aria-hidden="true" className="absolute top-10 right-20 w-40 h-40 orange-slice opacity-10 animate-pulse" style={{ animationDuration: '4s' }} />
+        <div aria-hidden="true" className="absolute bottom-10 left-20 w-28 h-28 orange-slice opacity-10 animate-pulse" style={{ animationDuration: '3s', animationDelay: '1s' }} />
         <div className="container mx-auto px-4 py-20 relative">
           <div className="max-w-4xl mx-auto text-center space-y-6">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-gray-200">
@@ -794,7 +802,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       </section>
 
       {/* About Section */}
-      <section id="tentang" className="py-20 bg-white">
+      <section id="tentang" className="py-20 bg-white scroll-mt-16">
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto text-center mb-12">
             <h2 className="text-4xl text-gray-900 mb-4">Tentang PlantVision</h2>
@@ -807,8 +815,8 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       </section>
 
       {/* Features Section */}
-      <section id="fitur" className="py-20 bg-gray-50 relative overflow-hidden">
-        <div className="absolute top-1/4 right-10 w-20 h-20 orange-slice opacity-5" />
+      <section id="fitur" className="py-20 bg-gray-50 relative overflow-hidden scroll-mt-16">
+        <div aria-hidden="true" className="absolute top-1/4 right-10 w-20 h-20 orange-slice opacity-5" />
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-4xl text-gray-900 mb-4">Fitur Unggulan</h2>
@@ -823,7 +831,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
                 className="group hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border-gray-200"
               >
                 <CardContent className="p-6">
-                  <div className="w-14 h-14 bg-gradient-to-br from-[#2ECC71] to-[#F39C12] rounded-lg flex items-center justify-center mb-4 text-white group-hover:scale-110 transition-transform">
+                  <div aria-hidden="true" className="w-14 h-14 bg-gradient-to-br from-[#2ECC71] to-[#F39C12] rounded-lg flex items-center justify-center mb-4 text-white group-hover:scale-110 transition-transform">
                     {feature.icon}
                   </div>
                   <h3 className="text-gray-900 mb-2">{feature.title}</h3>
@@ -836,8 +844,8 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       </section>
 
       {/* Team Section */}
-      <section id="tim" className="py-20 bg-gradient-to-b from-green-50 to-white relative overflow-hidden citrus-pattern">
-        <div className="absolute bottom-10 right-10 w-28 h-28 orange-slice opacity-10" />
+      <section id="tim" className="py-20 bg-gradient-to-b from-green-50 to-white relative overflow-hidden citrus-pattern scroll-mt-16">
+        <div aria-hidden="true" className="absolute bottom-10 right-10 w-28 h-28 orange-slice opacity-10" />
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-4xl text-gray-900 mb-4">Tim Pengembang</h2>
@@ -876,13 +884,13 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
                     <p className="text-[#2ECC71] mb-1">{member.role}</p>
                     <p className="text-gray-600">{member.expertise}</p>
                     <div className="flex justify-center gap-3 mt-4">
-                      <button className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-[#2ECC71] hover:text-white transition-colors">
+                      <button aria-label={`GitHub ${member.name}`} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-[#2ECC71] hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2ECC71]">
                         <Github className="w-4 h-4" />
                       </button>
-                      <button className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-[#2ECC71] hover:text-white transition-colors">
+                      <button aria-label={`Email ${member.name}`} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-[#2ECC71] hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2ECC71]">
                         <Mail className="w-4 h-4" />
                       </button>
-                      <button className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-[#2ECC71] hover:text-white transition-colors">
+                      <button aria-label={`Instagram ${member.name}`} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-[#2ECC71] hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2ECC71]">
                         <Instagram className="w-4 h-4" />
                       </button>
                     </div>

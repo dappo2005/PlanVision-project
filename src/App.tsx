@@ -115,15 +115,7 @@ export default function App() {
       )}
 
       {/* Main Content Area - dengan margin untuk sidebar yang menyesuaikan */}
-      <main 
-        className={!isLandingPage && !isGuestPage && isAuthenticated ? "min-h-screen sidebar-content" : ""}
-        style={{
-          marginLeft: !isLandingPage && !isGuestPage && isAuthenticated 
-            ? 'var(--sidebar-width, 80px)' 
-            : '0',
-          transition: 'margin-left 0.2s ease',
-        }}
-      >
+      <main className={!isLandingPage && !isGuestPage && isAuthenticated ? "min-h-screen sidebar-content" : ""}>
         <Routes>
         {/* Public Routes */}
         <Route 
