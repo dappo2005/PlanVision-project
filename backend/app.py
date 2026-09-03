@@ -1793,6 +1793,125 @@ def get_all_users():
         if conn and conn.is_connected(): conn.close()
 
 
+@app.route('/api/admin/users', methods=['POST'])
+def create_user_by_admin():
+    """API untuk admin membuat user baru"""
+    conn = None
+    cursor = None
+    try:
+        data = request.json or {}
+        nama = data.get('nama', '').strip()
+        email = data.get('email', '').strip()
+        username = data.get('username', '').strip()
+        password = data.get('password', '').strip()
+        phone = data.get('phone', None)
+        role = data.get('role', 'user')
+        status_akun = data.get('status', 'aktif')
+
+        if not nama or not email or not username or not password:
+            return jsonify({"error": "Nama, email, username, dan password wajib diisi"}), 400
+
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        cursor = conn.cursor(dictionary=True)
+
+        # Check existing email / username
+        cursor.execute("SELECT user_id FROM User WHERE email = %s OR username = %s", (email, username))
+        if cursor.fetchone():
+            return jsonify({"error": "Email atau username sudah terdaftar"}), 400
+
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+        query = """
+            INSERT INTO User (nama, email, username, phone, password, role, status_akun, accept_terms)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 1)
+        """
+        cursor.execute(query, (nama, email, username, phone, hashed_password, role, status_akun))
+        conn.commit()
+
+        new_id = cursor.lastrowid
+        return jsonify({"message": "User berhasil dibuat", "user_id": new_id}), 201
+
+    except Exception as e:
+        print(f"[Create User Admin] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+@app.route('/api/admin/users/<int:target_id>', methods=['PUT'])
+def update_user_by_admin(target_id):
+    """API untuk admin mengubah data user"""
+    conn = None
+    cursor = None
+    try:
+        data = request.json or {}
+        nama = data.get('nama', '').strip()
+        email = data.get('email', '').strip()
+        username = data.get('username', '').strip()
+        phone = data.get('phone', None)
+        role = data.get('role', 'user')
+        status_akun = data.get('status', 'aktif')
+
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("SELECT user_id FROM User WHERE user_id = %s", (target_id,))
+        if not cursor.fetchone():
+            return jsonify({"error": "User tidak ditemukan"}), 404
+
+        query = """
+            UPDATE User
+            SET nama = %s, email = %s, username = %s, phone = %s, role = %s, status_akun = %s
+            WHERE user_id = %s
+        """
+        cursor.execute(query, (nama, email, username, phone, role, status_akun, target_id))
+        conn.commit()
+
+        return jsonify({"message": "Data user berhasil diperbarui"}), 200
+
+    except Exception as e:
+        print(f"[Update User Admin] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+@app.route('/api/admin/users/<int:target_id>', methods=['DELETE'])
+def delete_user_by_admin(target_id):
+    """API untuk admin menghapus user"""
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("SELECT user_id, role FROM User WHERE user_id = %s", (target_id,))
+        user = cursor.fetchone()
+        if not user:
+            return jsonify({"error": "User tidak ditemukan"}), 404
+
+        cursor.execute("DELETE FROM User WHERE user_id = %s", (target_id,))
+        conn.commit()
+
+        return jsonify({"message": "User berhasil dihapus"}), 200
+
+    except Exception as e:
+        print(f"[Delete User Admin] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+
 @app.route('/api/admin/detections/stats', methods=['GET'])
 def get_detections_stats():
     """
@@ -2245,7 +2364,207 @@ def health_check():
     }), 200
 
 
-# --- Menjalankan Aplikasi ---
+# --- Admin: Global Detection Audit ---
+
+@app.route('/api/admin/detections', methods=['GET'])
+def get_admin_all_detections():
+    """
+    API untuk Superadmin: Mengambil SEMUA riwayat deteksi dari seluruh pengguna.
+    Dilengkapi JOIN ke tabel User untuk mendapatkan nama & email pengunggah.
+    Mendukung filter: severity, disease, search (nama/email/penyakit), page, limit.
+    Returns: { detections: [...], total, page, total_pages, stats }
+    """
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        cursor = conn.cursor(dictionary=True)
+
+        # Query params
+        severity_filter = request.args.get('severity', '').strip().lower()
+        disease_filter = request.args.get('disease', '').strip()
+        search_query = request.args.get('search', '').strip()
+        page = max(1, int(request.args.get('page', 1)))
+        limit = min(50, max(1, int(request.args.get('limit', 20))))
+        offset = (page - 1) * limit
+
+        # Build WHERE clauses
+        conditions = []
+        params = []
+
+        if severity_filter and severity_filter != 'all':
+            conditions.append("dh.severity = %s")
+            params.append(severity_filter)
+
+        if disease_filter and disease_filter.lower() != 'all':
+            conditions.append("dh.disease_name = %s")
+            params.append(disease_filter)
+
+        if search_query:
+            conditions.append("(u.nama LIKE %s OR u.email LIKE %s OR dh.disease_name LIKE %s)")
+            like_val = f"%{search_query}%"
+            params.extend([like_val, like_val, like_val])
+
+        where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+        # Count total
+        count_q = f"""
+            SELECT COUNT(*) as total
+            FROM DetectionHistory dh
+            LEFT JOIN User u ON dh.user_id = u.user_id
+            {where_clause}
+        """
+        cursor.execute(count_q, params)
+        count_row = cursor.fetchone()
+        total = count_row['total'] if count_row else 0  # type: ignore
+        total_pages = max(1, (total + limit - 1) // limit)
+
+        # Main query with JOIN
+        main_q = f"""
+            SELECT
+                dh.id,
+                dh.user_id,
+                u.nama AS user_nama,
+                u.email AS user_email,
+                dh.image_path,
+                dh.disease_name,
+                dh.confidence,
+                dh.severity,
+                dh.description,
+                dh.symptoms,
+                dh.treatment,
+                dh.prevention,
+                dh.detection_date
+            FROM DetectionHistory dh
+            LEFT JOIN User u ON dh.user_id = u.user_id
+            {where_clause}
+            ORDER BY dh.detection_date DESC
+            LIMIT %s OFFSET %s
+        """
+        cursor.execute(main_q, params + [limit, offset])
+        rows = cursor.fetchall()
+
+        detections = []
+        for row in rows:  # type: ignore
+            detections.append({
+                "id": row['id'],
+                "user_id": row['user_id'],
+                "user_nama": row['user_nama'] or "Pengguna Tidak Dikenal",
+                "user_email": row['user_email'] or "-",
+                "image_url": f"/api/uploads/{row['image_path']}",
+                "disease_name": row['disease_name'],
+                "confidence": float(row['confidence'] or 0),
+                "severity": row['severity'],
+                "description": row['description'] or "",
+                "symptoms": json.loads(row['symptoms']) if isinstance(row.get('symptoms'), str) and row['symptoms'] else (row.get('symptoms') or []),
+                "treatment": json.loads(row['treatment']) if isinstance(row.get('treatment'), str) and row['treatment'] else (row.get('treatment') or []),
+                "prevention": json.loads(row['prevention']) if isinstance(row.get('prevention'), str) and row['prevention'] else (row.get('prevention') or []),
+                "detection_date": row['detection_date'].isoformat() if row['detection_date'] else None
+            })
+
+        # Aggregate stats
+        cursor.execute("SELECT COUNT(*) as total, AVG(confidence) as avg_conf FROM DetectionHistory")
+        agg = cursor.fetchone()
+        cursor.execute("SELECT COUNT(*) as recent FROM DetectionHistory WHERE detection_date >= DATE_SUB(NOW(), INTERVAL 7 DAY)")
+        recent_row = cursor.fetchone()
+        cursor.execute("SELECT disease_name, COUNT(*) as cnt FROM DetectionHistory GROUP BY disease_name ORDER BY cnt DESC LIMIT 1")
+        top_disease_row = cursor.fetchone()
+
+        stats = {
+            "total_all": int(agg['total']) if agg else 0,  # type: ignore
+            "avg_confidence": round(float(agg['avg_conf']), 1) if agg and agg['avg_conf'] else 0,  # type: ignore
+            "recent_7days": int(recent_row['recent']) if recent_row else 0,  # type: ignore
+            "top_disease": top_disease_row['disease_name'] if top_disease_row else "-"  # type: ignore
+        }
+
+        return jsonify({
+            "detections": detections,
+            "total": total,
+            "page": page,
+            "total_pages": total_pages,
+            "limit": limit,
+            "stats": stats
+        }), 200
+
+    except Exception as e:
+        print(f"[admin/detections] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+@app.route('/api/admin/activities', methods=['GET'])
+def get_admin_activities():
+    """
+    API untuk Superadmin: Mengambil log aktivitas terbaru secara dinamis.
+    Menggabungkan: deteksi terbaru + pendaftaran user terbaru.
+    Returns: { activities: [{ type, description, user_nama, timestamp }] }
+    """
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        cursor = conn.cursor(dictionary=True)
+
+        activities = []
+
+        # 5 Deteksi terbaru
+        cursor.execute("""
+            SELECT
+                dh.disease_name, dh.confidence, dh.severity, dh.detection_date,
+                u.nama AS user_nama, u.email AS user_email
+            FROM DetectionHistory dh
+            LEFT JOIN User u ON dh.user_id = u.user_id
+            ORDER BY dh.detection_date DESC
+            LIMIT 5
+        """)
+        detections = cursor.fetchall()
+        for d in detections:  # type: ignore
+            activities.append({
+                "type": "detection",
+                "description": f"Mendeteksi {d['disease_name']} ({d['confidence']:.1f}%) - Severity: {d['severity']}",
+                "user_nama": d['user_nama'] or "Pengguna",
+                "user_email": d['user_email'] or "-",
+                "timestamp": d['detection_date'].isoformat() if d['detection_date'] else None
+            })
+
+        # 5 Pendaftaran user terbaru
+        cursor.execute("""
+            SELECT nama, email, tanggal_daftar, role
+            FROM User
+            ORDER BY tanggal_daftar DESC
+            LIMIT 5
+        """)
+        users = cursor.fetchall()
+        for u in users:  # type: ignore
+            activities.append({
+                "type": "new_user",
+                "description": f"Akun baru terdaftar sebagai {u['role']}",
+                "user_nama": u['nama'] or "Pengguna Baru",
+                "user_email": u['email'] or "-",
+                "timestamp": u['tanggal_daftar'].isoformat() if u['tanggal_daftar'] else None
+            })
+
+        # Sort gabungan berdasarkan waktu terbaru
+        activities.sort(key=lambda x: x['timestamp'] or '', reverse=True)
+        activities = activities[:8]  # Ambil 8 terbaru
+
+        return jsonify({"activities": activities}), 200
+
+    except Exception as e:
+        print(f"[admin/activities] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     # host='0.0.0.0' allows access from other devices on the same network
