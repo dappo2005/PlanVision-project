@@ -9,12 +9,14 @@ echo ================================================
 echo.
 
 REM Check if model exists
-if not exist "..\models\citrus_efficientnet_finetuned.h5" (
-    echo [ERROR] Model belum ada! Jalankan training dulu:
-    echo         python train.py --epochs 20
-    echo.
-    pause
-    exit /b 1
+if not exist "..\models\citrus_mobilenetv2_finetuned.h5" (
+    if not exist "..\models\citrus_efficientnet_finetuned.h5" (
+        echo [ERROR] Model belum ada! Jalankan training dulu:
+        echo         python train.py --epochs 20
+        echo.
+        pause
+        exit /b 1
+    )
 )
 
 echo [OK] Model ML ditemukan

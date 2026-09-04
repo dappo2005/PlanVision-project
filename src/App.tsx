@@ -74,6 +74,36 @@ export default function App() {
     }
   }, [location.pathname]);
 
+  // Handle Google OAuth redirect callback (#/auth?token=...)
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.startsWith('#/auth')) {
+      const query = hash.replace(/^#\/auth[?]?/, '');
+      const params = new URLSearchParams(query);
+      const token = params.get('token');
+      if (token) {
+        const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+        fetch(`${API_URL}/api/auth/session`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
+          body: JSON.stringify({ token }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data && data.user_id != null) {
+              localStorage.setItem('user', JSON.stringify(data));
+              setIsAuthenticated(true);
+              navigate('/dashboard', { replace: true });
+            }
+          })
+          .catch((err) => console.error('OAuth session error:', err));
+      }
+    }
+  }, [navigate]);
+
   const handleLogin = () => {
     setIsAuthenticated(true);
     setShowLoginDialog(false);
