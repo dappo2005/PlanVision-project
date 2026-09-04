@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, redirect
 from werkzeug.utils import secure_filename
 import mysql.connector
 import bcrypt
@@ -39,14 +39,26 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 # Load environment variables
 load_dotenv()
 
+# Secret key untuk keamanan sesi & signing (wajib untuk OAuth callback/session)
+app.secret_key = os.getenv('SECRET_KEY') or secrets.token_hex(32)
+
 # Upload folder configuration
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Load ML model at startup
-# --- INTEGRATION: Load the model (supports both CNN and MobileNetV2) ---
-MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'citrus_efficientnet_finetuned.h5')
+# --- INTEGRATION: Load the model (supports MobileNetV2 and EfficientNet) ---
+MODEL_FILENAME = os.getenv('MODEL_FILENAME', 'citrus_mobilenetv2_finetuned.h5')
+MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', MODEL_FILENAME)
+if not os.path.exists(MODEL_PATH):
+    # Fallback jika model yang ditentukan belum ada
+    for alt_name in ['citrus_mobilenetv2_finetuned.h5', 'citrus_efficientnet_finetuned.h5']:
+        alt_path = os.path.join(os.path.dirname(__file__), '..', 'models', alt_name)
+        if os.path.exists(alt_path):
+            MODEL_PATH = alt_path
+            break
+
 MODEL = None
 MODEL_TYPE = None  # Will be auto-detected: 'cnn' or 'mobilenetv2'
 CLASS_NAMES = ['Black spot', 'Canker', 'Greening', 'Healthy', 'Melanose']
@@ -137,6 +149,192 @@ def generate_unique_username(base: str, cursor) -> str:
             return candidate
         candidate = f"{cleaned}{suffix}"
         suffix += 1
+
+
+# ===================================================================
+# GOOGLE OAUTH (Login dengan Google)
+# ===================================================================
+GOOGLE_OAUTH_CLIENT_ID = os.getenv('GOOGLE_OAUTH_CLIENT_ID')
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv('GOOGLE_OAUTH_CLIENT_SECRET')
+OAUTH_REDIRECT_URI = os.getenv('OAUTH_REDIRECT_URI', 'http://localhost:5000/auth/google/callback')
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
+
+if GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET:
+    print("[Google OAuth] Dikonfigurasi (login Google aktif)")
+else:
+    print("[Google OAuth] Peringatan: GOOGLE_OAUTH_CLIENT_ID/SECRET belum diset di .env")
+
+
+def create_session_token(user_data: dict) -> str:
+    """Buat token sesi singkat (HMAC-signed JSON) berisi data user esensial."""
+    import hmac
+    import base64
+    payload = json.dumps({
+        "user_id": user_data.get("user_id"),
+        "nama": user_data.get("nama"),
+        "email": user_data.get("email"),
+        "username": user_data.get("username"),
+        "role": user_data.get("role"),
+        "exp": int(time.time()) + 3600,  # 1 jam
+    }).encode('utf-8')
+    b64 = base64.urlsafe_b64encode(payload).decode('utf-8').rstrip('=')
+    sig = hmac.new(app.secret_key.encode('utf-8'), b64.encode('utf-8'), hashlib.sha256).hexdigest()
+    return f"{b64}.{sig}"
+
+
+def verify_session_token(token: str):
+    """Verifikasi token sesi; return dict payload atau None jika tidak valid/kadaluarsa."""
+    import hmac
+    import base64
+    try:
+        b64, sig = token.rsplit('.', 1)
+        expect = hmac.new(app.secret_key.encode('utf-8'), b64.encode('utf-8'), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expect):
+            return None
+        # Tambahkan padding base64 yang dihilangkan
+        pad = '=' * (-len(b64) % 4)
+        data = json.loads(base64.urlsafe_b64decode(b64 + pad).decode('utf-8'))
+        if int(data.get('exp', 0)) < int(time.time()):
+            return None
+        return data
+    except Exception:
+        return None
+
+
+@app.route('/auth/google')
+def google_oauth_login():
+    """Redirect pengguna ke halaman konsen Google."""
+    if not GOOGLE_OAUTH_CLIENT_ID:
+        return jsonify({"error": "Google OAuth belum dikonfigurasi"}), 500
+    from urllib.parse import urlencode
+    params = {
+        "client_id": GOOGLE_OAUTH_CLIENT_ID,
+        "redirect_uri": OAUTH_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "online",
+        "prompt": "select_account",
+    }
+    return redirect(f"{GOOGLE_AUTH_URL}?{urlencode(params)}", code=302)
+
+
+@app.route('/auth/google/callback')
+def google_oauth_callback():
+    """Terima code dari Google, tukar jadi info user, reconcile ke tabel User, redirect ke frontend."""
+    import requests as http_requests
+    code = request.args.get('code')
+    error = request.args.get('error')
+    if error:
+        return jsonify({"error": f"Google OAuth error: {error}"}), 400
+    if not code:
+        return jsonify({"error": "Kode otorisasi tidak ada"}), 400
+
+    # 1. Tukar code -> token
+    token_resp = http_requests.post(GOOGLE_TOKEN_URL, data={
+        "code": code,
+        "client_id": GOOGLE_OAUTH_CLIENT_ID,
+        "client_secret": GOOGLE_OAUTH_CLIENT_SECRET,
+        "redirect_uri": OAUTH_REDIRECT_URI,
+        "grant_type": "authorization_code",
+    })
+    if token_resp.status_code != 200:
+        return jsonify({"error": "Gagal menukar kode Google", "detail": token_resp.text}), 400
+    tokens = token_resp.json()
+    access_token = tokens.get('access_token')
+    if not access_token:
+        return jsonify({"error": "Token akses Google tidak diterima"}), 400
+
+    # 2. Ambil info user (email, nama)
+    info_resp = http_requests.get(GOOGLE_USERINFO_URL, headers={"Authorization": f"Bearer {access_token}"})
+    if info_resp.status_code != 200:
+        return jsonify({"error": "Gagal mengambil profil Google"}), 400
+    ginfo = info_resp.json()
+    email = (ginfo.get('email') or '').strip().lower()
+    nama = ginfo.get('name') or email.split('@')[0]
+    if not email:
+        return jsonify({"error": "Google tidak mengembalikan email"}), 400
+
+    # 3. Reconcile ke tabel User (login jika ada, auto-register jika belum)
+    conn = None
+    cursor = None
+    try:
+        if USE_MOCK_DB and MOCK_DB_AVAILABLE:
+            # Mode mock: reuse register_user (melempar error bila email sudah terdaftar -> anggap login)
+            try:
+                result = mock_db.register_user(
+                    nama=nama, email=email, username=email.split('@')[0],
+                    phone=None, password='oauth', accept_terms=True
+                )
+                user_id = result['user_id']
+                role = 'user'
+                username = result['username']
+            except Exception:
+                mock_user = next((u for u in mock_db.users.values() if u['email'] == email), None)
+                user_id = mock_user['user_id'] if mock_user else 0
+                role = mock_user.get('role', 'user') if mock_user else 'user'
+                username = mock_user.get('username', email.split('@')[0]) if mock_user else email.split('@')[0]
+        else:
+            conn = get_db_connection()
+            if conn is None:
+                return jsonify({"error": "Koneksi database gagal"}), 500
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT user_id, nama, email, username, role, status_akun FROM User WHERE email=%s LIMIT 1", (email,))
+            existing_user = cursor.fetchone()
+
+            if existing_user:
+                # Email sudah terdaftar -> login
+                user_id = existing_user['user_id']
+                role = existing_user['role']
+                nama = existing_user['nama'] or nama
+                username = existing_user['username']
+            else:
+                # Auto-register akun baru via Google
+                username = generate_unique_username(email.split('@')[0], cursor)
+                import bcrypt as _bcrypt
+                random_password = _bcrypt.hashpw(secrets.token_urlsafe(16).encode('utf-8'), _bcrypt.gensalt()).decode('utf-8')
+                cursor.execute(
+                    "INSERT INTO User (nama, email, username, phone, password, role, status_akun, accept_terms) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    (nama, email, username, None, random_password, 'user', 'aktif', 1)
+                )
+                conn.commit()
+                user_id = cursor.lastrowid
+                role = 'user'
+
+        # 4. Buat token sesi & redirect ke frontend
+        token = create_session_token({
+            "user_id": user_id,
+            "nama": nama,
+            "email": email,
+            "username": username,
+            "role": role,
+        })
+        redirect_url = f"{FRONTEND_URL}/#/auth?token={token}"
+        return redirect(redirect_url, code=302)
+
+    except Exception as e:
+        print(f"[Google OAuth] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+@app.route('/api/auth/session', methods=['POST'])
+def auth_session():
+    """Verifikasi token sesi OAuth; return data user untuk disimpan di localStorage frontend."""
+    data = request.get_json(silent=True) or {}
+    token = data.get('token') or request.args.get('token')
+    if not token:
+        return jsonify({"error": "Token tidak ada"}), 400
+    payload = verify_session_token(token)
+    if not payload:
+        return jsonify({"error": "Token tidak valid atau kadaluarsa"}), 401
+    return jsonify(payload), 200
+
 
 # --- API REGISTRASI (F-02) ---
 @app.route('/api/register', methods=['POST'])
@@ -365,27 +563,20 @@ def predict_disease():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
-        # 2. PREPROCESSING: SMART RESIZE (PENTING!)
+        # 2. PREPROCESSING: SMART CENTER-CROP SQUARE (menghindari border hitam pemicu salah prediksi)
         start_time = time.time()
         img = Image.open(filepath).convert('RGB')
         
-        # Buat kanvas hitam persegi sesuai ukuran model
-        target_size = (IMAGE_SIZE, IMAGE_SIZE)
-        new_img = Image.new("RGB", target_size, (0, 0, 0))
-        
-        # Resize gambar asli agar muat di kanvas tanpa distorsi (gepeng)
-        img.thumbnail(target_size, Image.Resampling.LANCZOS)
-        
-        # Tempel gambar asli di tengah-tengah kanvas hitam
-        left = (target_size[0] - img.size[0]) // 2
-        top = (target_size[1] - img.size[1]) // 2
-        new_img.paste(img, (left, top))
+        # Potong area tengah (center crop) berbentuk persegi agar tidak ada border hitam yang memicu bias Melanose
+        w, h = img.size
+        min_dim = min(w, h)
+        left = (w - min_dim) // 2
+        top = (h - min_dim) // 2
+        crop_img = img.crop((left, top, left + min_dim, top + min_dim))
+        resized_img = crop_img.resize((IMAGE_SIZE, IMAGE_SIZE), Image.Resampling.LANCZOS)
         
         # Konversi ke Array
-        img_array = np.array(new_img).astype(np.float32) 
-        
-        # HAPUS PEMBAGIAN 255.0 (MobileNetV2 ada preprocess internal)
-        # img_array = img_array / 255.0  <-- JANGAN DILAKUKAN
+        img_array = np.array(resized_img).astype(np.float32) 
         
         # Tambah dimensi batch
         img_array = np.expand_dims(img_array, axis=0)
@@ -411,22 +602,18 @@ def predict_disease():
             print(f"Error getting disease info: {e}")
             disease_info = {}
 
+        # Ambil severity bawaan dari disease_info (biologis), atau fallback
+        severity = disease_info.get('severity', 'sedang')
+
         # 5. Simpan ke Database (REFACTORED: Prioritas DetectionHistory)
         history_id = None
         if user_id:
             # Jika mock mode aktif, simpan ke mock_db (tidak hilang jika MySQL down, tapi tetap in-memory)
             if USE_MOCK_DB and MOCK_DB_AVAILABLE:
                 try:
-                    # severity & info sama seperti di bawah
-                    if top_prob >= 0.9:
-                        _sev = "tinggi"
-                    elif top_prob >= 0.7:
-                        _sev = "sedang"
-                    else:
-                        _sev = "rendah"
                     md = mock_db.add_detection(
                         user_id=int(user_id), image_path=filename, disease_name=top_class,
-                        confidence=top_prob*100, severity=_sev,
+                        confidence=top_prob*100, severity=severity,
                         description=disease_info.get('description',''),
                         symptoms=json.dumps(disease_info.get('symptoms',[])),
                         treatment=json.dumps(disease_info.get('treatment',[])),
@@ -442,14 +629,6 @@ def predict_disease():
                 
                 # NEW: Simpan ke DetectionHistory dengan data lengkap
                 try:
-                    # Tentukan severity berdasarkan confidence
-                    if top_prob >= 0.9:
-                        severity = "tinggi"
-                    elif top_prob >= 0.7:
-                        severity = "sedang"
-                    else:
-                        severity = "rendah"
-                    
                     # Ekstrak data dari disease_info
                     description = disease_info.get('description', '')
                     symptoms = json.dumps(disease_info.get('symptoms', []))
