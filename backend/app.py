@@ -1988,11 +1988,11 @@ def chat_ai():
 
         import requests as req
         
-        # Coba model Google Gemini terbaru yang aktif
+        # Coba model Google Gemini terbaru yang aktif (prioritas 3.6-flash yang paling stabil)
         endpoints = [
-            ("v1beta", "gemini-flash-latest"),
             ("v1beta", "gemini-3.6-flash"),
             ("v1beta", "gemini-3.7-flash"),
+            ("v1beta", "gemini-flash-latest"),
             ("v1beta", "gemini-pro-latest"),
         ]
         
