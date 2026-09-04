@@ -113,6 +113,23 @@ export default function App() {
     }
   }, [navigate]);
 
+  // Handle backward compatibility untuk email lama yang berisi hash: (#/reset-password?token=...)
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.startsWith('#/reset-password')) {
+      const query = hash.includes('?') ? hash.split('?')[1] : '';
+      navigate(`/reset-password${query ? `?${query}` : ''}`, { replace: true });
+    }
+  }, [navigate]);
+
+  // Auto-open login dialog jika navigasi dari reset password sukses (?login=1)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('login') === '1' || params.get('login') === 'true') {
+      setShowLoginDialog(true);
+    }
+  }, [location.search]);
+
   const handleLogin = () => {
     setIsAuthenticated(true);
     setShowLoginDialog(false);

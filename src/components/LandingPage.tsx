@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Checkbox } from "./ui/checkbox";
 import { Separator } from "./ui/separator";
 import { Leaf, Camera, Network, BarChart3, FileText, Cloud, Linkedin, Github, Mail, Eye, EyeOff, User, Phone, Lock, AlertCircle, CheckCircle2, Instagram, ArrowLeft } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import React from "react";
 
 // Force localhost:5000 untuk development
@@ -49,6 +49,38 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
   const [forgotError, setForgotError] = useState("");
   const [forgotSuccess, setForgotSuccess] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
+
+  // Pantau parameter URL (?login=1 atau ?forgot=1) saat komponen mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('login') === '1' || params.get('login') === 'true') {
+      setShowLoginDialog(true);
+      setForgotMode(false);
+      setActiveTab("login");
+      const email = params.get('email');
+      if (email) {
+        setLoginEmail(email);
+      }
+    } else if (params.get('forgot') === '1' || params.get('forgot') === 'true') {
+      setShowLoginDialog(true);
+      setForgotMode(true);
+    }
+  }, [setShowLoginDialog]);
+
+  // Sinkronkan tab dan form jika dialog login dibuka dari luar
+  useEffect(() => {
+    if (showLoginDialog) {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('login') === '1' || params.get('login') === 'true') {
+        setForgotMode(false);
+        setActiveTab("login");
+        const email = params.get('email');
+        if (email) {
+          setLoginEmail(email);
+        }
+      }
+    }
+  }, [showLoginDialog]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();

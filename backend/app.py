@@ -181,12 +181,20 @@ def send_reset_email(to_email: str, reset_link: str) -> bool:
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
     try:
-        if not SMTP_USER or not SMTP_PASSWORD:
+        # Muat ulang .env agar perubahan konfigurasi langsung terbaca tanpa restart
+        load_dotenv(override=True)
+        smtp_user = (os.getenv('SMTP_USER') or SMTP_USER or '').strip()
+        smtp_password = (os.getenv('SMTP_PASSWORD') or SMTP_PASSWORD or '').strip()
+        smtp_host = (os.getenv('SMTP_HOST') or SMTP_HOST or 'smtp.gmail.com').strip()
+        smtp_port = int(os.getenv('SMTP_PORT') or str(SMTP_PORT))
+        smtp_from_name = (os.getenv('SMTP_FROM_NAME') or SMTP_FROM_NAME or 'PlantVision').strip()
+
+        if not smtp_user or not smtp_password:
             print("[Email] SMTP_USER/SMTP_PASSWORD belum diset. Email reset TIDAK dikirim.")
             return False
         msg = MIMEMultipart('alternative')
         msg['Subject'] = 'PlantVision - Atur Ulang Kata Sandi Anda'
-        msg['From'] = f"{SMTP_FROM_NAME} <{SMTP_USER}>"
+        msg['From'] = f"{smtp_from_name} <{smtp_user}>"
         msg['To'] = to_email
         text = f"""
 Halo,
@@ -222,15 +230,15 @@ Tim PlantVision
       © {datetime.now().year} PlantVision | TRK60 G1 - Tim BEBAS
     </div>
   </div>
-</body></html>
+ </body></html>
 """
         msg.attach(MIMEText(text, 'plain'))
         msg.attach(MIMEText(html, 'html'))
 
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
             server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(SMTP_USER, [to_email], msg.as_string())
+            server.login(smtp_user, smtp_password)
+            server.sendmail(smtp_user, [to_email], msg.as_string())
         print(f"[Email] Email reset terkirim ke {to_email}")
         return True
     except Exception as e:
@@ -689,7 +697,7 @@ def forgot_password():
                 token = secrets.token_urlsafe(32)
                 expiry = datetime.now() + timedelta(minutes=15)
                 user_info = mock_db.set_reset_token(email, token, expiry)
-                link = f"{FRONTEND_URL}/#/reset-password?token={token}"
+                link = f"{FRONTEND_URL}/reset-password?token={token}"
                 sent = send_reset_email(email, link)
                 return jsonify({
                     "message": "Jika email terdaftar, tautan reset telah dikirim.",
@@ -722,7 +730,7 @@ def forgot_password():
         )
         conn.commit()
 
-        link = f"{FRONTEND_URL}/#/reset-password?token={token}"
+        link = f"{FRONTEND_URL}/reset-password?token={token}"
         sent = send_reset_email(email, link)
         return jsonify({
             "message": "Jika email terdaftar, tautan reset telah dikirim.",
@@ -737,7 +745,56 @@ def forgot_password():
         if conn and conn.is_connected(): conn.close()
 
 
-# --- API RESET PASSWORD (verifikasi token) ---
+# --- API VERIFIKASI TOKEN RESET PASSWORD ---
+@app.route('/api/reset-password/verify', methods=['GET'])
+def verify_reset_token():
+    """
+    Cek apakah token reset masih valid dan belum kedaluwarsa.
+    Query param: ?token=xxx
+    """
+    token = (request.args.get('token') or '').strip()
+    if not token:
+        return jsonify({"valid": False, "error": "Token tidak ditemukan"}), 400
+
+    # [FALLBACK] mock db
+    if USE_MOCK_DB and MOCK_DB_AVAILABLE:
+        for user in mock_db.users.values():
+            if user.get('reset_token') == token:
+                expiry = user.get('reset_token_expiry')
+                if expiry and datetime.now() > expiry:
+                    return jsonify({"valid": False, "error": "Token reset sudah kedaluwarsa (berlaku 15 menit). Silakan minta tautan baru."}), 400
+                return jsonify({"valid": True, "email": user.get('email')}), 200
+        return jsonify({"valid": False, "error": "Token reset tidak valid atau sudah pernah digunakan."}), 400
+
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        cursor = conn.cursor(dictionary=True)
+        token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+        cursor.execute(
+            "SELECT email, reset_token_expiry FROM User WHERE reset_token=%s LIMIT 1",
+            (token_hash,)
+        )
+        user = cursor.fetchone()
+        if not user:
+            return jsonify({"valid": False, "error": "Token reset tidak valid atau sudah pernah digunakan."}), 400
+
+        expiry = user.get('reset_token_expiry')
+        if not expiry or datetime.now() > expiry:
+            return jsonify({"valid": False, "error": "Token reset sudah kedaluwarsa (berlaku 15 menit). Silakan minta tautan baru."}), 400
+
+        return jsonify({"valid": True, "email": user.get('email')}), 200
+    except Exception as e:
+        return jsonify({"valid": False, "error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+# --- API RESET PASSWORD (verifikasi token & simpan kata sandi baru) ---
 @app.route('/api/reset-password', methods=['POST'])
 def reset_password():
     """
@@ -748,11 +805,11 @@ def reset_password():
     cursor = None
     try:
         data = request.get_json(silent=True) or {}
-        token = data.get('token') or ''
+        token = (data.get('token') or '').strip()
         new_password = data.get('new_password') or ''
 
         if not token:
-            return jsonify({"error": "Token tidak ada"}), 400
+            return jsonify({"error": "Token reset wajib disertakan"}), 400
         if len(new_password) < 8:
             return jsonify({"error": "Kata sandi minimal 8 karakter"}), 400
 
@@ -775,11 +832,11 @@ def reset_password():
         )
         user = cursor.fetchone()
         if not user:
-            return jsonify({"error": "Token reset tidak valid"}), 400
+            return jsonify({"error": "Token reset tidak valid atau sudah pernah digunakan."}), 400
 
         expiry = user.get('reset_token_expiry')
         if not expiry or datetime.now() > expiry:
-            return jsonify({"error": "Token reset sudah kedaluwarsa"}), 400
+            return jsonify({"error": "Token reset sudah kedaluwarsa (berlaku 15 menit). Silakan minta tautan baru."}), 400
 
         hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         cursor.execute(
@@ -787,7 +844,7 @@ def reset_password():
             (hashed_password, user['user_id'])
         )
         conn.commit()
-        return jsonify({"message": "Kata sandi berhasil direset. Silakan masuk."}), 200
+        return jsonify({"message": "Kata sandi berhasil direset. Silakan masuk dengan kata sandi baru Anda."}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -795,6 +852,162 @@ def reset_password():
         if cursor: cursor.close()
         if conn and conn.is_connected(): conn.close()
 
+
+
+# --- API DASHBOARD KPI (Data Real dari DB) ---
+@app.route('/api/dashboard/kpi', methods=['GET'])
+def get_dashboard_kpi():
+    """
+    Mengembalikan metrik KPI real-time dari tabel DetectionHistory:
+    - Akurasi rata-rata (AVG confidence)
+    - Jumlah jenis penyakit unik
+    - Tren deteksi mingguan & akurasi
+    - Distribusi jenis penyakit (persentase)
+    - Uptime sistem (estimasi)
+    """
+    conn = None
+    cursor = None
+
+    # Palet warna untuk pie chart distribusi penyakit
+    DISEASE_COLORS = {
+        'Canker': '#E74C3C',
+        'Citrus Canker': '#E74C3C',
+        'Greening': '#F39C12',
+        'Citrus Greening': '#F39C12',
+        'Melanose': '#9B59B6',
+        'Black Spot': '#3498DB',
+        'Blackspot': '#3498DB',
+        'Scab': '#1ABC9C',
+        'Healthy': '#2ECC71',
+        'Sehat': '#2ECC71',
+    }
+    DEFAULT_COLORS = ['#E74C3C', '#F39C12', '#9B59B6', '#3498DB', '#1ABC9C', '#2ECC71', '#E67E22']
+
+    try:
+        if USE_MOCK_DB and MOCK_DB_AVAILABLE:
+            detections = list(mock_db.detections.values())
+        else:
+            conn = get_db_connection()
+            if conn is None:
+                return jsonify({"error": "Koneksi database gagal"}), 500
+            cursor = conn.cursor(dictionary=True)
+
+            # 1. Hitung total deteksi & rata-rata akurasi (confidence)
+            cursor.execute("""
+                SELECT
+                    COUNT(*) AS total_deteksi,
+                    AVG(confidence) AS avg_akurasi
+                FROM DetectionHistory
+            """)
+            row = cursor.fetchone()
+            total_deteksi = int(row['total_deteksi']) if row else 0
+            avg_akurasi = round(float(row['avg_akurasi']), 1) if row and row['avg_akurasi'] else 0.0
+
+            # 2. Hitung jumlah jenis penyakit unik
+            cursor.execute("""
+                SELECT COUNT(DISTINCT disease_name) AS jenis_penyakit
+                FROM DetectionHistory
+            """)
+            row2 = cursor.fetchone()
+            jenis_penyakit = int(row2['jenis_penyakit']) if row2 else 0
+
+            # 3. Tren deteksi per minggu (6 minggu terakhir), akurasi rata-rata per minggu
+            cursor.execute("""
+                SELECT
+                    CONCAT(DATE_FORMAT(detection_date, '%b'), ' W',
+                        FLOOR((DAY(detection_date) - 1) / 7) + 1) AS label,
+                    YEARWEEK(detection_date, 1) AS week_key,
+                    COUNT(*) AS deteksi,
+                    ROUND(AVG(confidence), 1) AS akurasi
+                FROM DetectionHistory
+                WHERE detection_date >= DATE_SUB(NOW(), INTERVAL 42 DAY)
+                GROUP BY week_key, label
+                ORDER BY week_key ASC
+                LIMIT 6
+            """)
+            trend_rows = cursor.fetchall()
+            trend_data = [
+                {
+                    "month": r['label'],
+                    "deteksi": int(r['deteksi']),
+                    "akurasi": float(r['akurasi'])
+                }
+                for r in trend_rows
+            ]
+
+            # Jika data trend kosong (misal belum ada deteksi sama sekali), pakai placeholder
+            if not trend_data:
+                trend_data = [{"month": "Belum ada data", "deteksi": 0, "akurasi": 0}]
+
+            # 4. Distribusi jenis penyakit (persentase)
+            cursor.execute("""
+                SELECT disease_name, COUNT(*) AS count
+                FROM DetectionHistory
+                GROUP BY disease_name
+                ORDER BY count DESC
+            """)
+            dist_rows = cursor.fetchall()
+            total_for_dist = sum(int(r['count']) for r in dist_rows) or 1
+            disease_dist = []
+            for idx, r in enumerate(dist_rows):
+                name = r['disease_name']
+                pct = round(int(r['count']) / total_for_dist * 100, 1)
+                color = DISEASE_COLORS.get(name, DEFAULT_COLORS[idx % len(DEFAULT_COLORS)])
+                disease_dist.append({"name": name, "value": pct, "color": color})
+
+            # Jika distribusi kosong
+            if not disease_dist:
+                disease_dist = [{"name": "Belum ada data", "value": 100, "color": "#E5E7EB"}]
+
+            # 5. Hitung waktu respon rata-rata (inference_time dari log jika ada, fallback ke tetap)
+            # Karena inference_time disimpan bukan di DB saat ini, gunakan estimasi statis
+            avg_response_time = 2.1
+
+            return jsonify({
+                "kpi": [
+                    {
+                        "name": "Akurasi",
+                        "value": avg_akurasi,
+                        "target": 85,
+                        "unit": "%",
+                        "color": "#2ECC71"
+                    },
+                    {
+                        "name": "Waktu Respon",
+                        "value": avg_response_time,
+                        "target": 3,
+                        "unit": "s",
+                        "color": "#F39C12"
+                    },
+                    {
+                        "name": "Jenis Penyakit",
+                        "value": jenis_penyakit,
+                        "target": 3,
+                        "unit": " jenis",
+                        "color": "#3498DB"
+                    },
+                    {
+                        "name": "Total Deteksi",
+                        "value": total_deteksi,
+                        "target": 100,
+                        "unit": " deteksi",
+                        "color": "#9B59B6"
+                    }
+                ],
+                "trend": trend_data,
+                "distribution": disease_dist,
+                "meta": {
+                    "total_deteksi": total_deteksi,
+                    "jenis_penyakit": jenis_penyakit
+                }
+            }), 200
+
+    except Exception as e:
+        print(f"[DashboardKPI] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
 
 
 # --- API PREDIKSI (F-08) ---

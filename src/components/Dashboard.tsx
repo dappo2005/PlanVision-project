@@ -48,9 +48,29 @@ import {
   Cell,
 } from "recharts";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import React from "react";
 import { useNavigate } from "react-router-dom";
+
+const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+
+interface KpiItem {
+  name: string;
+  value: number;
+  target: number;
+  unit: string;
+  color: string;
+}
+interface TrendItem {
+  month: string;
+  deteksi: number;
+  akurasi: number;
+}
+interface DistItem {
+  name: string;
+  value: number;
+  color: string;
+}
 
 interface DashboardProps {
   onLogout: () => void;
@@ -193,50 +213,41 @@ export default function Dashboard({
 
   const isSuperadmin = userRole === 'superadmin';
 
-  const kpiData = [
-    {
-      name: "Akurasi",
-      value: 87,
-      target: 85,
-      color: "#2ECC71",
-    },
-    {
-      name: "Waktu Respon",
-      value: 2.5,
-      target: 3,
-      unit: "s",
-      color: "#F39C12",
-    },
-    {
-      name: "Jenis Penyakit",
-      value: 5,
-      target: 3,
-      color: "#3498DB",
-    },
-    {
-      name: "Uptime",
-      value: 97,
-      target: 95,
-      unit: "%",
-      color: "#9B59B6",
-    },
-  ];
+  // ── KPI State (data real dari backend) ──────────────────────────────────
+  const [kpiData, setKpiData] = useState<KpiItem[]>([
+    { name: "Akurasi", value: 0, target: 85, unit: "%", color: "#2ECC71" },
+    { name: "Waktu Respon", value: 0, target: 3, unit: "s", color: "#F39C12" },
+    { name: "Jenis Penyakit", value: 0, target: 3, unit: " jenis", color: "#3498DB" },
+    { name: "Total Deteksi", value: 0, target: 100, unit: " deteksi", color: "#9B59B6" },
+  ]);
+  const [detectionData, setDetectionData] = useState<TrendItem[]>([]);
+  const [diseaseDistribution, setDiseaseDistribution] = useState<DistItem[]>([]);
+  const [isLoadingKpi, setIsLoadingKpi] = useState(true);
+  const [kpiError, setKpiError] = useState<string | null>(null);
 
-  const detectionData = [
-    { month: "Nov W1", deteksi: 45, akurasi: 85 },
-    { month: "Nov W2", deteksi: 62, akurasi: 86 },
-    { month: "Nov W3", deteksi: 78, akurasi: 87 },
-    { month: "Nov W4", deteksi: 95, akurasi: 87 },
-    { month: "Des W1", deteksi: 110, akurasi: 88 },
-  ];
-
-  const diseaseDistribution = [
-    { name: "Citrus Canker", value: 35, color: "#E74C3C" },
-    { name: "Citrus Greening", value: 28, color: "#F39C12" },
-    { name: "Melanose", value: 20, color: "#9B59B6" },
-    { name: "Black Spot", value: 12, color: "#3498DB" },
-    { name: "Sehat", value: 5, color: "#2ECC71" },
-  ];
+  useEffect(() => {
+    const fetchKpi = async () => {
+      setIsLoadingKpi(true);
+      setKpiError(null);
+      try {
+        const res = await fetch(`${API_URL}/api/dashboard/kpi`, {
+          headers: { 'ngrok-skip-browser-warning': 'true' },
+        });
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+        const data = await res.json();
+        if (data.kpi) setKpiData(data.kpi);
+        if (data.trend && data.trend.length > 0) setDetectionData(data.trend);
+        if (data.distribution && data.distribution.length > 0) setDiseaseDistribution(data.distribution);
+      } catch (err: any) {
+        console.error('[Dashboard] Failed to fetch KPI:', err);
+        setKpiError('Gagal memuat data KPI. Menampilkan data fallback.');
+        // Fallback: tetap gunakan nilai awal state
+      } finally {
+        setIsLoadingKpi(false);
+      }
+    };
+    fetchKpi();
+  }, []);
 
   const timelineData = [
     {
@@ -804,35 +815,50 @@ export default function Dashboard({
             </p>
           </div>
 
+          {/* KPI Error Banner */}
+          {kpiError && (
+            <div className="mb-6 max-w-6xl mx-auto px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 flex items-center gap-2">
+              <span className="text-amber-500">⚠</span> {kpiError}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12 max-w-6xl mx-auto">
             {kpiData.map((kpi, index) => (
               <Card key={index}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-gray-700">
-                      {kpi.name}
-                    </h3>
-                    <CheckCircle2 className="w-6 h-6 text-[#2ECC71]" />
+                    <h3 className="text-gray-700">{kpi.name}</h3>
+                    {isLoadingKpi ? (
+                      <div className="w-5 h-5 rounded-full bg-gray-200 animate-pulse" />
+                    ) : (
+                      <CheckCircle2 className="w-6 h-6 text-[#2ECC71]" />
+                    )}
                   </div>
-                  <div className="text-3xl text-gray-900 mb-2">
-                    {kpi.value}
-                    {kpi.unit || "%"}
-                  </div>
-                  <div className="text-gray-500 mb-3">
-                    Target: {kpi.target}
-                    {kpi.unit || "%"}
-                  </div>
-                  <Progress
-                    value={
-                      kpi.unit === "s"
-                        ? (kpi.target / kpi.value) * 100
-                        : (kpi.value / kpi.target) * 100
-                    }
-                    className="h-2"
-                    style={{
-                      backgroundColor: "#E5E7EB",
-                    }}
-                  />
+                  {isLoadingKpi ? (
+                    <>
+                      <div className="h-8 w-20 bg-gray-200 rounded animate-pulse mb-2" />
+                      <div className="h-4 w-24 bg-gray-100 rounded animate-pulse mb-3" />
+                      <div className="h-2 w-full bg-gray-100 rounded animate-pulse" />
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-3xl text-gray-900 mb-2 font-semibold">
+                        {kpi.value}{kpi.unit}
+                      </div>
+                      <div className="text-gray-500 mb-3 text-sm">
+                        Target: {kpi.target}{kpi.unit}
+                      </div>
+                      <Progress
+                        value={
+                          kpi.unit === "s"
+                            ? Math.min((kpi.target / Math.max(kpi.value, 0.01)) * 100, 100)
+                            : Math.min((kpi.value / Math.max(kpi.target, 1)) * 100, 100)
+                        }
+                        className="h-2"
+                        style={{ backgroundColor: "#E5E7EB" }}
+                      />
+                    </>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -904,9 +930,12 @@ export default function Dashboard({
                         ),
                       )}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip formatter={(value: number) => [`${value}%`, 'Persentase']} />
                   </PieChart>
                 </ResponsiveContainer>
+                {diseaseDistribution.length === 0 && !isLoadingKpi && (
+                  <p className="text-center text-gray-400 text-sm mt-2">Belum ada data deteksi penyakit.</p>
+                )}
               </CardContent>
             </Card>
           </div>
