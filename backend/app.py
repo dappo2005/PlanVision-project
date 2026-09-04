@@ -10,7 +10,7 @@ import time
 from PIL import Image
 import io
 from flask_cors import CORS
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import hashlib
 import secrets
@@ -167,6 +167,76 @@ if GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET:
 else:
     print("[Google OAuth] Peringatan: GOOGLE_OAUTH_CLIENT_ID/SECRET belum diset di .env")
 
+# --- KONFIGURASI EMAIL / SMTP (untuk fitur Lupa Kata Sandi) ---
+SMTP_HOST = os.getenv('SMTP_HOST', 'smtp.gmail.com')
+SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
+SMTP_USER = os.getenv('SMTP_USER', '')
+SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
+SMTP_FROM_NAME = os.getenv('SMTP_FROM_NAME', 'PlantVision')
+
+
+def send_reset_email(to_email: str, reset_link: str) -> bool:
+    """Kirim email berisi link reset password via SMTP (Gmail)."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    try:
+        if not SMTP_USER or not SMTP_PASSWORD:
+            print("[Email] SMTP_USER/SMTP_PASSWORD belum diset. Email reset TIDAK dikirim.")
+            return False
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = 'PlantVision - Atur Ulang Kata Sandi Anda'
+        msg['From'] = f"{SMTP_FROM_NAME} <{SMTP_USER}>"
+        msg['To'] = to_email
+        text = f"""
+Halo,
+
+Anda menerima email ini karena kami menerima permintaan untuk mengatur ulang kata sandi akun PlantVision Anda.
+
+Klik tautan berikut untuk mengatur ulang kata sandi Anda (berlaku 15 menit):
+{reset_link}
+
+Jika Anda tidak meminta ini, abaikan email ini.
+
+Terima kasih,
+Tim PlantVision
+"""
+        html = f"""
+<html><body style="font-family:Arial,sans-serif;background:#f6f7f8;padding:24px;">
+  <div style="max-width:520px;margin:auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e6e8eb;">
+    <div style="background:#2ECC71;color:#fff;padding:20px 24px;text-align:center;">
+      <h2 style="margin:0;">PlantVision</h2>
+      <p style="margin:4px 0 0;font-size:14px;">Atur Ulang Kata Sandi</p>
+    </div>
+    <div style="padding:28px 24px;">
+      <p>Halo,</p>
+      <p>Kami menerima permintaan untuk mengatur ulang kata sandi akun Anda.</p>
+      <p>Klik tombol di bawah untuk mengatur ulang kata sandi (berlaku 15 menit):</p>
+      <p style="text-align:center;">
+        <a href="{reset_link}" style="display:inline-block;background:#2ECC71;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;">Atur Ulang Kata Sandi</a>
+      </p>
+      <p style="font-size:13px;color:#6b7280;">Jika tombol tidak berfungsi, salin tautan ini ke browser:<br>{reset_link}</p>
+      <p style="font-size:13px;color:#6b7280;">Jika Anda tidak meminta ini, abaikan email ini.</p>
+    </div>
+    <div style="background:#f3f4f6;padding:12px 24px;font-size:12px;color:#9ca3af;text-align:center;">
+      © {datetime.now().year} PlantVision | TRK60 G1 - Tim BEBAS
+    </div>
+  </div>
+</body></html>
+"""
+        msg.attach(MIMEText(text, 'plain'))
+        msg.attach(MIMEText(html, 'html'))
+
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_USER, [to_email], msg.as_string())
+        print(f"[Email] Email reset terkirim ke {to_email}")
+        return True
+    except Exception as e:
+        print(f"[Email] Gagal mengirim email: {e}")
+        return False
+
 
 def create_session_token(user_data: dict) -> str:
     """Buat token sesi singkat (HMAC-signed JSON) berisi data user esensial."""
@@ -271,17 +341,24 @@ def google_oauth_callback():
                 user_id = result['user_id']
                 role = 'user'
                 username = result['username']
+                # Tandai sebagai user Google (belum punya password lokal)
+                try:
+                    mock_db.users[user_id]['provider'] = 'google'
+                except Exception:
+                    pass
+                provider = 'google'
             except Exception:
                 mock_user = next((u for u in mock_db.users.values() if u['email'] == email), None)
                 user_id = mock_user['user_id'] if mock_user else 0
                 role = mock_user.get('role', 'user') if mock_user else 'user'
                 username = mock_user.get('username', email.split('@')[0]) if mock_user else email.split('@')[0]
+                provider = mock_user.get('provider', 'local') if mock_user else 'google'
         else:
             conn = get_db_connection()
             if conn is None:
                 return jsonify({"error": "Koneksi database gagal"}), 500
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT user_id, nama, email, username, role, status_akun FROM User WHERE email=%s LIMIT 1", (email,))
+            cursor.execute("SELECT user_id, nama, email, username, role, status_akun, provider FROM User WHERE email=%s LIMIT 1", (email,))
             existing_user = cursor.fetchone()
 
             if existing_user:
@@ -290,19 +367,21 @@ def google_oauth_callback():
                 role = existing_user['role']
                 nama = existing_user['nama'] or nama
                 username = existing_user['username']
+                provider = existing_user.get('provider') or 'local'
             else:
                 # Auto-register akun baru via Google
                 username = generate_unique_username(email.split('@')[0], cursor)
                 import bcrypt as _bcrypt
                 random_password = _bcrypt.hashpw(secrets.token_urlsafe(16).encode('utf-8'), _bcrypt.gensalt()).decode('utf-8')
                 cursor.execute(
-                    "INSERT INTO User (nama, email, username, phone, password, role, status_akun, accept_terms) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                    (nama, email, username, None, random_password, 'user', 'aktif', 1)
+                    "INSERT INTO User (nama, email, username, phone, password, role, status_akun, accept_terms, provider) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (nama, email, username, None, random_password, 'user', 'aktif', 1, 'google')
                 )
                 conn.commit()
                 user_id = cursor.lastrowid
                 role = 'user'
+                provider = 'google'
 
         # 4. Buat token sesi & redirect ke frontend
         token = create_session_token({
@@ -311,6 +390,7 @@ def google_oauth_callback():
             "email": email,
             "username": username,
             "role": role,
+            "provider": provider,
         })
         redirect_url = f"{FRONTEND_URL}/#/auth?token={token}"
         return redirect(redirect_url, code=302)
@@ -398,8 +478,8 @@ def register_user():
         username = generate_unique_username(email_local_part, cursor)
 
         # 5. Eksekusi query SQL termasuk accept_terms
-        query = "INSERT INTO User (nama, email, username, phone, password, role, status_akun, accept_terms) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
-        values = (nama, email, username, phone or None, hashed_password, 'user', 'aktif', 1)
+        query = "INSERT INTO User (nama, email, username, phone, password, role, status_akun, accept_terms, provider) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+        values = (nama, email, username, phone or None, hashed_password, 'user', 'aktif', 1, 'local')
 
         cursor.execute(query, values)
         conn.commit()
@@ -466,7 +546,8 @@ def login_user():
                     "email": user['email'],
                     "username": user['username'],
                     "role": user['role'],
-                    "status_akun": user['status_akun']
+                    "status_akun": user['status_akun'],
+                    "provider": user.get('provider', 'local')
                 }), 200
             except Exception as e:
                 return jsonify({"error": str(e)}), 401
@@ -507,6 +588,7 @@ def login_user():
                 # Password cocok!
                 user_id_val = user_data.get('user_id') or user_data.get('id')
                 status_val = user_data.get('status_akun') or user_data.get('status') or 'aktif'
+                provider_val = user_data.get('provider') or 'local'
                 return jsonify({
                     "message": f"Login sukses. Selamat datang, {user_data['nama']}!",
                     "user_id": user_id_val,
@@ -515,7 +597,8 @@ def login_user():
                     "username": user_data['username'],
                     "phone": user_data['phone'],
                     "role": user_data['role'],
-                    "status": status_val
+                    "status": status_val,
+                    "provider": provider_val
                 }), 200
             else:
                 return jsonify({"error": "Username atau password salah"}), 401
@@ -534,6 +617,183 @@ def login_user():
             cursor.close()
         if conn and conn.is_connected():
             conn.close()
+
+
+
+# --- API SET PASSWORD (untuk user Google) ---
+@app.route('/api/set-password', methods=['POST'])
+def set_password():
+    """
+    Membuat/memperbarui password lokal untuk user (misal user yang daftar via Google).
+    Input JSON: { email, new_password }
+    """
+    conn = None
+    cursor = None
+    try:
+        data = request.get_json(silent=True) or {}
+        email = (data.get('email') or '').strip().lower()
+        new_password = data.get('new_password') or ''
+
+        if not email:
+            return jsonify({"error": "Email wajib diisi"}), 400
+        if len(new_password) < 8:
+            return jsonify({"error": "Kata sandi minimal 8 karakter"}), 400
+
+        # [FALLBACK] mock db
+        if USE_MOCK_DB and MOCK_DB_AVAILABLE:
+            try:
+                result = mock_db.set_password(email, new_password)
+                return jsonify(result), 200
+            except Exception as e:
+                return jsonify({"error": str(e)}), 400
+
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM User WHERE email=%s LIMIT 1", (email,))
+        user = cursor.fetchone()
+        if not user:
+            return jsonify({"error": "Email tidak terdaftar"}), 404
+
+        hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        cursor.execute("UPDATE User SET password=%s, provider='local' WHERE email=%s", (hashed_password, email))
+        conn.commit()
+        return jsonify({"message": "Kata sandi berhasil dibuat/diperbarui"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+# --- API LUPA KATA SANDI (Lupa Kata Sandi) ---
+@app.route('/api/forgot-password', methods=['POST'])
+def forgot_password():
+    """
+    Terima email -> generate reset token -> kirim link reset via email.
+    Input JSON: { email }
+    """
+    conn = None
+    cursor = None
+    try:
+        data = request.get_json(silent=True) or {}
+        email = (data.get('email') or '').strip().lower()
+        if not email:
+            return jsonify({"error": "Email wajib diisi"}), 400
+
+        # [FALLBACK] mock db
+        if USE_MOCK_DB and MOCK_DB_AVAILABLE:
+            try:
+                token = secrets.token_urlsafe(32)
+                expiry = datetime.now() + timedelta(minutes=15)
+                user_info = mock_db.set_reset_token(email, token, expiry)
+                link = f"{FRONTEND_URL}/#/reset-password?token={token}"
+                sent = send_reset_email(email, link)
+                return jsonify({
+                    "message": "Jika email terdaftar, tautan reset telah dikirim.",
+                    "dev_reset_link": link if not sent else None
+                }), 200
+            except Exception as e:
+                # Jangan bocorkan apakah email ada atau tidak
+                print(f"[ForgotPassword] {e}")
+                return jsonify({"message": "Jika email terdaftar, tautan reset telah dikirim."}), 200
+
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM User WHERE email=%s LIMIT 1", (email,))
+        user = cursor.fetchone()
+
+        # Selalu kembalikan pesan sama (anti user-enumeration)
+        if not user:
+            print(f"[ForgotPassword] Email tidak terdaftar: {email}")
+            return jsonify({"message": "Jika email terdaftar, tautan reset telah dikirim."}), 200
+
+        token = secrets.token_urlsafe(32)
+        expiry = datetime.now() + timedelta(minutes=15)
+        # Simpan hash token untuk keamanan ekstra
+        token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+        cursor.execute(
+            "UPDATE User SET reset_token=%s, reset_token_expiry=%s WHERE email=%s",
+            (token_hash, expiry, email)
+        )
+        conn.commit()
+
+        link = f"{FRONTEND_URL}/#/reset-password?token={token}"
+        sent = send_reset_email(email, link)
+        return jsonify({
+            "message": "Jika email terdaftar, tautan reset telah dikirim.",
+            "dev_reset_link": link if not sent else None
+        }), 200
+
+    except Exception as e:
+        print(f"[ForgotPassword] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
+
+
+# --- API RESET PASSWORD (verifikasi token) ---
+@app.route('/api/reset-password', methods=['POST'])
+def reset_password():
+    """
+    Verifikasi token reset lalu set password baru.
+    Input JSON: { token, new_password }
+    """
+    conn = None
+    cursor = None
+    try:
+        data = request.get_json(silent=True) or {}
+        token = data.get('token') or ''
+        new_password = data.get('new_password') or ''
+
+        if not token:
+            return jsonify({"error": "Token tidak ada"}), 400
+        if len(new_password) < 8:
+            return jsonify({"error": "Kata sandi minimal 8 karakter"}), 400
+
+        # [FALLBACK] mock db
+        if USE_MOCK_DB and MOCK_DB_AVAILABLE:
+            try:
+                result = mock_db.reset_password(token, new_password)
+                return jsonify(result), 200
+            except Exception as e:
+                return jsonify({"error": str(e)}), 400
+
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "Koneksi database gagal"}), 500
+        cursor = conn.cursor(dictionary=True)
+        token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+        cursor.execute(
+            "SELECT * FROM User WHERE reset_token=%s LIMIT 1",
+            (token_hash,)
+        )
+        user = cursor.fetchone()
+        if not user:
+            return jsonify({"error": "Token reset tidak valid"}), 400
+
+        expiry = user.get('reset_token_expiry')
+        if not expiry or datetime.now() > expiry:
+            return jsonify({"error": "Token reset sudah kedaluwarsa"}), 400
+
+        hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        cursor.execute(
+            "UPDATE User SET password=%s, reset_token=NULL, reset_token_expiry=NULL, provider='local' WHERE user_id=%s",
+            (hashed_password, user['user_id'])
+        )
+        conn.commit()
+        return jsonify({"message": "Kata sandi berhasil direset. Silakan masuk."}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn and conn.is_connected(): conn.close()
 
 
 

@@ -17,9 +17,26 @@ CREATE TABLE IF NOT EXISTS User (
     role VARCHAR(20) DEFAULT 'user',
     status_akun VARCHAR(20) DEFAULT 'active',
     accept_terms TINYINT(1) DEFAULT 0,
+    provider VARCHAR(20) DEFAULT 'local',
+    reset_token VARCHAR(255) DEFAULT NULL,
+    reset_token_expiry DATETIME DEFAULT NULL,
     tanggal_daftar TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Migrasi aman untuk tabel yang sudah ada (lekukan kolom baru bila belum ada)
+SET @dbname = DATABASE();
+SET @has_provider = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='User' AND COLUMN_NAME='provider');
+SET @sql = IF(@has_provider=0, 'ALTER TABLE User ADD COLUMN provider VARCHAR(20) DEFAULT ''local''', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_reset_token = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='User' AND COLUMN_NAME='reset_token');
+SET @sql = IF(@has_reset_token=0, 'ALTER TABLE User ADD COLUMN reset_token VARCHAR(255) DEFAULT NULL', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_reset_expiry = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='User' AND COLUMN_NAME='reset_token_expiry');
+SET @sql = IF(@has_reset_expiry=0, 'ALTER TABLE User ADD COLUMN reset_token_expiry DATETIME DEFAULT NULL', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- Create the DetectionHistory table for storing ML detection results (aman: IF NOT EXISTS)
 CREATE TABLE IF NOT EXISTS DetectionHistory (

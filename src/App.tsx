@@ -15,6 +15,8 @@ import DetectionHistory from "./components/DetectionHistory";
 import Contact from "./components/Contact";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
+import ResetPassword from "./pages/ResetPassword";
+import SetPasswordDialog from "./components/SetPasswordDialog";
 import { Toaster } from "./components/ui/sonner";
 
 // Protected Route Component
@@ -63,6 +65,8 @@ export default function App() {
   const location = useLocation();
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showSetPassword, setShowSetPassword] = useState(false);
+  const [setPasswordEmail, setSetPasswordEmail] = useState("");
 
   // Check auth status on mount and route change
   useEffect(() => {
@@ -96,6 +100,11 @@ export default function App() {
             if (data && data.user_id != null) {
               localStorage.setItem('user', JSON.stringify(data));
               setIsAuthenticated(true);
+              // Jika user terdaftar via Google dan belum punya password lokal -> ajak buat kata sandi
+              if (data.provider === 'google') {
+                setShowSetPassword(true);
+                setSetPasswordEmail(data.email || "");
+              }
               navigate('/dashboard', { replace: true });
             }
           })
@@ -119,6 +128,7 @@ export default function App() {
   // Determine navbar variant based on current path
   const isLandingPage = location.pathname === "/";
   const isGuestPage = location.pathname === "/feedback/guest";
+  const isResetPage = location.pathname === "/reset-password";
 
   return (
     <>
@@ -131,7 +141,7 @@ export default function App() {
       )}
 
       {/* Sidebar - Only show on authenticated pages (not landing and not guest) */}
-      {!isLandingPage && !isGuestPage && isAuthenticated && (
+      {!isLandingPage && !isGuestPage && !isResetPage && isAuthenticated && (
         <Sidebar
           onLogout={handleLogout}
           onNavigateToDashboard={() => navigate("/dashboard")}
@@ -145,7 +155,7 @@ export default function App() {
       )}
 
       {/* Main Content Area - dengan margin untuk sidebar yang menyesuaikan */}
-      <main className={!isLandingPage && !isGuestPage && isAuthenticated ? "min-h-screen sidebar-content" : ""}>
+      <main className={!isLandingPage && !isGuestPage && !isResetPage && isAuthenticated ? "min-h-screen sidebar-content" : ""}>
         <Routes>
         {/* Public Routes */}
         <Route 
@@ -163,6 +173,12 @@ export default function App() {
         <Route 
           path="/feedback/guest" 
           element={<FeedbackGuest />} 
+        />
+        
+        {/* Reset Password (Public, via link di email) */}
+        <Route 
+          path="/reset-password" 
+          element={<ResetPassword />} 
         />
         
         {/* Protected Routes */}
@@ -333,6 +349,19 @@ export default function App() {
         </Routes>
       </main>
 
+      <SetPasswordDialog
+        open={showSetPassword}
+        onOpenChange={(open) => setShowSetPassword(open)}
+        email={setPasswordEmail}
+        onSuccess={() => {
+          // Update stored user provider jadi 'local'
+          try {
+            const u = JSON.parse(localStorage.getItem('user') || '{}');
+            u.provider = 'local';
+            localStorage.setItem('user', JSON.stringify(u));
+          } catch (_) {}
+        }}
+      />
       <Toaster />
     </>
   );

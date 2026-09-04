@@ -30,6 +30,9 @@ class MockDatabase:
                 'role': 'user',
                 'status_akun': 'aktif',
                 'accept_terms': True,
+                'provider': 'local',
+                'reset_token': None,
+                'reset_token_expiry': None,
                 'tanggal_daftar': datetime.now().isoformat()
             },
             2: {
@@ -42,6 +45,9 @@ class MockDatabase:
                 'role': 'superadmin',
                 'status_akun': 'aktif',
                 'accept_terms': True,
+                'provider': 'local',
+                'reset_token': None,
+                'reset_token_expiry': None,
                 'tanggal_daftar': datetime.now().isoformat()
             }
         }
@@ -67,6 +73,9 @@ class MockDatabase:
             'role': 'user',
             'status_akun': 'aktif',
             'accept_terms': accept_terms,
+            'provider': 'local',
+            'reset_token': None,
+            'reset_token_expiry': None,
             'tanggal_daftar': datetime.now().isoformat()
         }
         self.next_user_id += 1
@@ -80,19 +89,69 @@ class MockDatabase:
     
     def login_user(self, username_or_email: str, password: str) -> Dict[str, Any]:
         """Mock user login"""
+        import bcrypt
         for user in self.users.values():
             if (user['email'] == username_or_email or user['username'] == username_or_email):
-                # In real app: bcrypt.checkpw()
+                stored = str(user['password'])
+                try:
+                    # Real bcrypt hash -> verifikasi
+                    if bcrypt.checkpw(password.encode('utf-8'), stored.encode('utf-8')):
+                        ok = True
+                    else:
+                        ok = False
+                except ValueError:
+                    # Bukan hash bcrypt -> fallback compare plain (untuk data mock lama)
+                    ok = (stored == password)
+                if not ok:
+                    raise Exception("Username atau password salah")
                 return {
                     'user_id': user['user_id'],
                     'nama': user['nama'],
                     'email': user['email'],
                     'username': user['username'],
                     'role': user['role'],
-                    'status_akun': user['status_akun']
+                    'status_akun': user['status_akun'],
+                    'provider': user.get('provider', 'local')
                 }
         
         raise Exception("Username atau password salah")
+    
+    def set_password(self, email: str, new_password: str) -> Dict[str, Any]:
+        """Set/update password untuk user (termasuk user Google)."""
+        import bcrypt
+        for user in self.users.values():
+            if user['email'].lower() == email.lower():
+                user['password'] = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                user['provider'] = 'local'
+                return {'message': 'Kata sandi berhasil dibuat/diperbarui'}
+        raise Exception("Email tidak ditemukan")
+    
+    def set_reset_token(self, email: str, token: str, expiry: datetime) -> Dict[str, Any]:
+        """Simpan reset token untuk user."""
+        for user in self.users.values():
+            if user['email'].lower() == email.lower():
+                user['reset_token'] = token
+                user['reset_token_expiry'] = expiry
+                return {'message': 'reset token disimpan', 'nama': user['nama'], 'email': user['email']}
+        raise Exception("Email tidak terdaftar")
+    
+    def reset_password(self, token: str, new_password: str) -> Dict[str, Any]:
+        """Verifikasi reset token lalu update password."""
+        import bcrypt
+        from datetime import datetime as dt
+        now = dt.now()
+        for user in self.users.values():
+            if user.get('reset_token') and user['reset_token'] == token:
+                expiry = user.get('reset_token_expiry')
+                if not expiry or now > expiry:
+                    raise Exception("Token sudah kedaluwarsa")
+                user['password'] = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                user['reset_token'] = None
+                user['reset_token_expiry'] = None
+                user['provider'] = 'local'
+                return {'message': 'Kata sandi berhasil direset'}
+        raise Exception("Token tidak valid")
+    
     
     def add_detection(self, user_id: int, image_path: str, disease_name: str, confidence: float, severity: str, **kwargs) -> Dict[str, Any]:
         """Mock disease detection"""

@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Checkbox } from "./ui/checkbox";
 import { Separator } from "./ui/separator";
-import { Leaf, Camera, Network, BarChart3, FileText, Cloud, Linkedin, Github, Mail, Eye, EyeOff, User, Phone, Lock, AlertCircle, CheckCircle2, Instagram } from "lucide-react";
+import { Leaf, Camera, Network, BarChart3, FileText, Cloud, Linkedin, Github, Mail, Eye, EyeOff, User, Phone, Lock, AlertCircle, CheckCircle2, Instagram, ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import React from "react";
 
@@ -42,6 +42,13 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
 
   // Active tab
   const [activeTab, setActiveTab] = useState("login");
+
+  // Forgot password state
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotError, setForgotError] = useState("");
+  const [forgotSuccess, setForgotSuccess] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,8 +236,43 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
   };
 
   const handleForgotPassword = () => {
-    // This would typically open a forgot password modal or navigate to a page
-    alert("Fitur lupa kata sandi akan segera hadir!");
+    setForgotMode(true);
+    setForgotError("");
+    setForgotSuccess(false);
+  };
+
+  const handleForgotSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError("");
+    setForgotSuccess(false);
+
+    if (!forgotEmail || !forgotEmail.includes("@")) {
+      setForgotError("Masukkan email yang valid.");
+      return;
+    }
+
+    setForgotLoading(true);
+    fetch(`${API_URL}/api/forgot-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+      },
+      body: JSON.stringify({ email: forgotEmail }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setForgotLoading(false);
+        if (data.message) {
+          setForgotSuccess(true);
+        } else if (data.error) {
+          setForgotError(data.error);
+        }
+      })
+      .catch(() => {
+        setForgotLoading(false);
+        setForgotError(`Koneksi ke server gagal. Pastikan backend running di ${API_URL}`);
+      });
   };
 
   const handleDialogOpenChange = (open: boolean) => {
@@ -249,6 +291,10 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       setRegisterSuccess(false);
       setAcceptTerms(false);
       setActiveTab("login");
+      setForgotMode(false);
+      setForgotEmail("");
+      setForgotError("");
+      setForgotSuccess(false);
     }
   };
 
@@ -348,6 +394,94 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
             </DialogDescription>
           </DialogHeader>
 
+          {forgotMode ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotMode(false);
+                    setForgotError("");
+                    setForgotSuccess(false);
+                  }}
+                  className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Kembali ke Masuk
+                </button>
+              </div>
+
+              {forgotSuccess ? (
+                <div className="text-center space-y-3 py-4">
+                  <div className="flex items-center justify-center w-14 h-14 mx-auto bg-green-100 rounded-full">
+                    <CheckCircle2 className="w-8 h-8 text-[#2ECC71]" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Email Terkirim</h3>
+                  <p className="text-sm text-gray-600">
+                    Jika email <span className="font-medium text-gray-800">{forgotEmail}</span> terdaftar,
+                    kami telah mengirim tautan untuk mengatur ulang kata sandi Anda. Silakan cek inbox
+                    Anda (atau folder spam). Tautan berlaku 15 menit.
+                  </p>
+                  <Button
+                    type="button"
+                    className="bg-[#2ECC71] hover:bg-[#27AE60] text-white h-10"
+                    onClick={() => {
+                      setForgotMode(false);
+                      setForgotSuccess(false);
+                      setForgotEmail("");
+                    }}
+                  >
+                    Kembali ke Masuk
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="text-center">
+                    <h3 className="text-lg font-semibold text-gray-900">Lupa Kata Sandi</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Masukkan email yang terdaftar. Kami akan mengirimkan tautan untuk mengatur ulang
+                      kata sandi Anda.
+                    </p>
+                  </div>
+
+                  {forgotError && (
+                    <div aria-live="polite" className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>{forgotError}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleForgotSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="forgot-email" className="flex items-center gap-2">
+                        <Mail className="w-4 h-4" />
+                        Email
+                      </Label>
+                      <Input
+                        id="forgot-email"
+                        type="email"
+                        placeholder="nama@email.com"
+                        value={forgotEmail}
+                        onChange={(e) => {
+                          setForgotEmail(e.target.value);
+                          setForgotError("");
+                        }}
+                        className="w-full"
+                        required
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      disabled={forgotLoading}
+                      className="w-full bg-[#2ECC71] hover:bg-[#27AE60] text-white h-11"
+                    >
+                      {forgotLoading ? "Mengirim..." : "Kirim Tautan Reset"}
+                    </Button>
+                  </form>
+                </>
+              )}
+            </div>
+          ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="login" className="flex items-center gap-2">
@@ -746,6 +880,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
               </div>
             </TabsContent>
           </Tabs>
+          )}
         </DialogContent>
       </Dialog>
 
