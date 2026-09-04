@@ -1966,13 +1966,18 @@ def get_feedback_stats():
 @app.route('/api/chat', methods=['POST'])
 def chat_ai():
     try:
-        data = request.json
+        data = request.json or {}
         user_message = data.get('message')
         
         if not user_message:
             return jsonify({"error": "Pesan tidak boleh kosong"}), 400
 
-        if not GEMINI_API_KEY:
+        api_key = os.getenv('GEMINI_API_KEY') or GEMINI_API_KEY
+        if not api_key:
+            load_dotenv(override=True)
+            api_key = os.getenv('GEMINI_API_KEY')
+
+        if not api_key:
             return jsonify({"error": "Chat AI belum dikonfigurasi. Set GEMINI_API_KEY di .env"}), 500
 
         system_prompt = (
@@ -1981,15 +1986,14 @@ def chat_ai():
             "Fokus pada penyakit daun jeruk: Black spot, Canker, Greening, Melanose, Healthy."
         )
 
-        # Gunakan Google Generative AI REST API dengan endpoint v1 yang lebih stabil
         import requests as req
         
-        # Coba berbagai kombinasi endpoint dan model
+        # Coba model Google Gemini terbaru yang aktif
         endpoints = [
-            ("v1", "gemini-1.5-flash"),
-            ("v1beta", "gemini-1.5-flash"),
-            ("v1beta", "gemini-pro"),
-            ("v1", "gemini-pro"),
+            ("v1beta", "gemini-flash-latest"),
+            ("v1beta", "gemini-3.6-flash"),
+            ("v1beta", "gemini-3.7-flash"),
+            ("v1beta", "gemini-pro-latest"),
         ]
         
         prompt_text = f"{system_prompt}\n\nPertanyaan: {user_message}"
@@ -2004,13 +2008,16 @@ def chat_ai():
         
         for version, model_name in endpoints:
             try:
-                api_url = f"https://generativelanguage.googleapis.com/{version}/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+                api_url = f"https://generativelanguage.googleapis.com/{version}/models/{model_name}:generateContent?key={api_key}"
                 resp = req.post(api_url, json=payload, timeout=30)
-                resp.raise_for_status()
-                result = resp.json()
-                reply_text = result['candidates'][0]['content']['parts'][0]['text']
-                print(f"[Chat AI] Berhasil menggunakan {version}/models/{model_name}")
-                break
+                if resp.status_code == 200:
+                    result = resp.json()
+                    reply_text = result['candidates'][0]['content']['parts'][0]['text']
+                    print(f"[Chat AI] Berhasil menggunakan {version}/models/{model_name}")
+                    break
+                else:
+                    last_error = Exception(f"HTTP {resp.status_code}: {resp.text}")
+                    print(f"[Chat AI] Model {version}/{model_name} status {resp.status_code}")
             except Exception as e:
                 last_error = e
                 print(f"[Chat AI] Gagal {version}/{model_name}: {str(e)[:100]}")
@@ -2033,10 +2040,6 @@ def chat_ai():
         print(f"[Chat AI Error]: {e}")
         return jsonify({
             "reply": "Maaf, terjadi kesalahan saat menghubungi AI. Pastikan API key valid dan model tersedia.",
-            "error": str(e)
-        }), 500
-        return jsonify({
-            "reply": "Maaf, terjadi kesalahan koneksi. Silakan coba lagi.",
             "error": str(e)
         }), 500
         
