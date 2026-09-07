@@ -81,16 +81,23 @@ def execute_sql_file(connection, filepath):
         statements = [s.strip() for s in sql.split(';') if s.strip()]
         
         for statement in statements:
-            # Skip komentar murni
-            stripped = statement.strip()
-            if not stripped or (stripped.startswith("--") and "\n" not in statement):
+            # Clean statement from leading comments
+            lines = [l for l in statement.splitlines() if l.strip() and not l.strip().startswith("--")]
+            clean_stmt = "\n".join(lines).strip()
+            if not clean_stmt:
                 continue
+            # Skip CREATE DATABASE dan USE statement agar menggunakan database target dari koneksi (misal defaultdb Aiven)
+            if clean_stmt.upper().startswith("CREATE DATABASE") or clean_stmt.upper().startswith("USE "):
+                print(f"  -- Skipped DB creation/switch statement: {clean_stmt[:50]}")
+                continue
+
             # Skip statement yang sudah di-mark SKIPPED tapi masih mengandung DROP
             if "SKIPPED (safe mode)" in statement:
                 print(f"  -- Skipped DROP statement")
                 continue
-            print(f"  Executing: {statement[:80].replace(chr(10),' ')}...")
-            cursor.execute(statement)
+            print(f"  Executing: {clean_stmt[:80].replace(chr(10),' ')}...")
+            cursor.execute(clean_stmt)
+
             # Consume unread results untuk SELECT/DESCRIBE/SHOW agar next execute tidak error
             try:
                 # jika ada result set, buang
@@ -129,8 +136,10 @@ def main():
             host=DB_HOST,
             port=DB_PORT,
             user=DB_USER,
-            password=DB_PASSWORD
+            password=DB_PASSWORD,
+            database=DB_NAME
         )
+
         print("[OK] Connected to MySQL")
 
         # Safety check: tampilkan data existing sebelum eksekusi

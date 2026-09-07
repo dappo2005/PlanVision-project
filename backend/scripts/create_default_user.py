@@ -5,6 +5,9 @@ Usage: python create_default_user.py
 import mysql.connector
 import bcrypt
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def create_default_user():
     """Membuat user default untuk testing"""
