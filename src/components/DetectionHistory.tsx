@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+const API_URL = (import.meta as any).env?.VITE_API_URL || "";
 
 // Headers untuk bypass ngrok warning page
 const fetchHeaders = {

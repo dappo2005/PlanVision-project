@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { AlertCircle, CheckCircle2, Lock, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 
-const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+const API_URL = (import.meta as any).env?.VITE_API_URL || "";
 
 interface SetPasswordDialogProps {
   open: boolean;

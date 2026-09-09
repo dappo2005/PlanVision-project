@@ -52,7 +52,7 @@ import { useState, useEffect } from "react";
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
-const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+const API_URL = (import.meta as any).env?.VITE_API_URL || "";
 
 interface KpiItem {
   name: string;
@@ -166,7 +166,7 @@ export default function Dashboard({
           // ALWAYS sync role from backend to ensure it's up-to-date
           if (user.email) {
             try {
-              const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+              const API_URL = (import.meta as any).env?.VITE_API_URL || "";
               console.log('[Dashboard] Syncing role from:', `${API_URL}/api/user/role?email=${encodeURIComponent(user.email)}`);
               const response = await fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(user.email)}`, {
                 headers: {

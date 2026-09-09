@@ -20,7 +20,7 @@ import {
 import { toast } from "sonner";
 
 // Default ke localhost, user bisa ubah di UI
-const DEFAULT_API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+const DEFAULT_API_URL = (import.meta as any).env?.VITE_API_URL || "";
 
 interface DetectionResult {
   disease: string;

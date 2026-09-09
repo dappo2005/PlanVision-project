@@ -26,7 +26,7 @@ interface MyFeedbacksProps {
 
 export default function MyFeedbacks({ onLogout, onNavigateToDashboard }: MyFeedbacksProps) {
   const navigate = useNavigate();
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API_URL = import.meta.env.VITE_API_URL || '';
   
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [isLoading, setIsLoading] = useState(true);

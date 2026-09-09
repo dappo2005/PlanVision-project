@@ -17,7 +17,7 @@ interface FeedbackProps {
 
 export default function Feedback({ onLogout, onNavigateToDashboard }: FeedbackProps) {
   const navigate = useNavigate();
-const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+const API_URL = (import.meta as any).env?.VITE_API_URL || "";
 
 // Debug: Log API URL saat component mount
 console.log("[Feedback] API_URL:", API_URL);

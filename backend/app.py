@@ -3220,7 +3220,31 @@ def get_admin_activities():
 
 
 
+# --- SPA: serve built React frontend (single container deployment) ---
+FRONTEND_DIST = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'build'))
+
+@app.route('/')
+def serve_index():
+    """Serve index.html dari hasil build React frontend."""
+    if not os.path.isfile(os.path.join(FRONTEND_DIST, 'index.html')):
+        return jsonify({"message": "PlantVision API berjalan. Frontend belum di-build."}), 200
+    return send_from_directory(FRONTEND_DIST, 'index.html')
+
+@app.route('/<path:path>')
+def serve_spa(path):
+    """Serve static assets dari build/, fallback ke index.html untuk React Router (SPA)."""
+    if path.startswith('api/') or path.startswith('auth/') or path.startswith('health'):
+        return jsonify({"error": "Not found"}), 404
+    full_path = os.path.join(FRONTEND_DIST, path)
+    if os.path.isfile(full_path):
+        return send_from_directory(FRONTEND_DIST, path)
+    if os.path.isfile(os.path.join(FRONTEND_DIST, 'index.html')):
+        return send_from_directory(FRONTEND_DIST, 'index.html')
+    return jsonify({"error": "Not found"}), 404
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_DEBUG', '1') == '1'
     # host='0.0.0.0' allows access from other devices on the same network
-    app.run(debug=True, host='0.0.0.0', port=port)
+    app.run(debug=debug, host='0.0.0.0', port=port)

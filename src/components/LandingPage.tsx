@@ -11,7 +11,7 @@ import { useState, useEffect } from "react";
 import React from "react";
 
 // Force localhost:5000 untuk development
-const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+const API_URL = (import.meta as any).env?.VITE_API_URL || "";
 console.log("[LandingPage] Using API_URL:", API_URL);
 
 interface LandingPageProps {

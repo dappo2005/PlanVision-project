@@ -63,7 +63,7 @@ interface AdminFeedbackDashboardProps {
 
 export default function AdminFeedbackDashboard({ onLogout, onNavigateToDashboard, embedded = false }: AdminFeedbackDashboardProps) {
   const navigate = useNavigate();
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API_URL = import.meta.env.VITE_API_URL || '';
   
   // Headers untuk bypass ngrok warning page
   const fetchHeaders = {

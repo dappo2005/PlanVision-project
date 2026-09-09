@@ -10,7 +10,7 @@ import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 
 export default function FeedbackGuest() {
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API_URL = import.meta.env.VITE_API_URL || '';
   
   const [formData, setFormData] = useState({
     nama: "",

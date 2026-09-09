@@ -86,7 +86,7 @@ export default function App() {
       const params = new URLSearchParams(query);
       const token = params.get('token');
       if (token) {
-        const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+        const API_URL = (import.meta as any).env?.VITE_API_URL || "";
         fetch(`${API_URL}/api/auth/session`, {
           method: 'POST',
           headers: {

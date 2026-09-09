@@ -67,7 +67,7 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
     setNewsError(null);
     
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const API_URL = import.meta.env.VITE_API_URL || '';
       const categoryParam = selectedCategory !== 'semua' ? `?category=${selectedCategory}` : '';
       
       const response = await fetch(`${API_URL}/api/news${categoryParam}`, {
@@ -291,7 +291,7 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
     }
 
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const API_URL = import.meta.env.VITE_API_URL || '';
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       
       const response = await fetch(`${API_URL}/api/news`, {
@@ -397,7 +397,7 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
     }
 
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const API_URL = import.meta.env.VITE_API_URL || '';
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       
       const response = await fetch(`${API_URL}/api/news/${editingArticleId}`, {
@@ -454,7 +454,7 @@ export default function News({ onLogout, onNavigateToDashboard }: NewsProps) {
   const handleDeleteArticle = async (articleId: string) => {
     if (window.confirm("Apakah Anda yakin ingin menghapus berita ini?")) {
       try {
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const API_URL = import.meta.env.VITE_API_URL || '';
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         
         const response = await fetch(`${API_URL}/api/news/${articleId}`, {

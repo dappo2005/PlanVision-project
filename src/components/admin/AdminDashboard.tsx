@@ -59,7 +59,7 @@ interface User {
 
 export default function AdminDashboard({ onLogout, onNavigateToDashboard }: AdminDashboardProps) {
   const navigate = useNavigate();
-  const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+  const API_URL = (import.meta as any).env?.VITE_API_URL || "";
   
   const [adminId, setAdminId] = useState<number | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);

@@ -1,0 +1,46 @@
+# Node
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+build/
+dist/
+
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+backend/.venv/
+backend/__pycache__/
+
+# Env & secrets
+.env
+.env.local
+.env.production
+backend/.env
+backend/.env.bak
+
+# Large/irrelevant assets
+data/
+backend/uploads/
+backend/ml/
+testsprite_tests/
+.codegraph/
+docs/
+
+# Editor & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Logs
+*.log

@@ -67,7 +67,7 @@ export default function Navbar({
           // ALWAYS sync role from backend to ensure it's up-to-date
           if (userEmail) {
             try {
-              const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5000";
+              const API_URL = (import.meta as any).env?.VITE_API_URL || "";
               console.log('[Navbar] Fetching role from backend for:', userEmail);
               const response = await fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(userEmail)}`, {
                 headers: {
