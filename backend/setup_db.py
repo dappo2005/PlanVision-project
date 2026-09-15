@@ -8,24 +8,20 @@ from mysql.connector import Error
 import os
 import sys
 
-# Database config
-DB_HOST = os.getenv('DB_HOST', 'localhost')
-DB_PORT = os.getenv('DB_PORT', '3306')
-DB_USER = os.getenv('DB_USER', 'root')
-DB_PASSWORD = os.getenv('DB_PASSWORD', 'D@ffa_2005')
-DB_NAME = os.getenv('DB_NAME', 'plantvision_db')
-
-# Load .env if exists
+# Load optional local configuration before validating required credentials.
+from scripts._safe_config import required_env
 try:
     from dotenv import load_dotenv
-    load_dotenv()
-    DB_HOST = os.getenv('DB_HOST', 'localhost')
-    DB_PORT = os.getenv('DB_PORT', '3306')
-    DB_USER = os.getenv('DB_USER', 'root')
-    DB_PASSWORD = os.getenv('DB_PASSWORD', 'D@ffa_2005')
-    DB_NAME = os.getenv('DB_NAME', 'plantvision_db')
-except:
-    pass
+except ImportError:
+    load_dotenv = None
+if load_dotenv is not None:
+    load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_PORT = os.getenv('DB_PORT', '3306')
+DB_USER = required_env('DB_USER')
+DB_PASSWORD = required_env('DB_PASSWORD')
+DB_NAME = os.getenv('DB_NAME', 'plantvision_db')
 
 BASE_DIR = os.path.dirname(__file__)
 SQL_FILES = [
@@ -95,7 +91,7 @@ def execute_sql_file(connection, filepath):
             if "SKIPPED (safe mode)" in statement:
                 print(f"  -- Skipped DROP statement")
                 continue
-            print(f"  Executing: {clean_stmt[:80].replace(chr(10),' ')}...")
+            print("  Executing SQL statement (contents omitted)...")
             cursor.execute(clean_stmt)
 
             # Consume unread results untuk SELECT/DESCRIBE/SHOW agar next execute tidak error

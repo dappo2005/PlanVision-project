@@ -1,6 +1,7 @@
+from _safe_config import required_env, new_account_password
 """
-Script untuk membuat user default untuk testing/login
-Usage: python create_default_user.py
+Create an explicitly configured test account (writes to MySQL).
+Usage: python scripts/create_default_user.py (see docs/SECURITY_PHASE_0_1.md)
 """
 import mysql.connector
 import bcrypt
@@ -16,8 +17,8 @@ def create_default_user():
         config = {
             'host': os.getenv('DB_HOST', 'localhost'),
             'port': int(os.getenv('DB_PORT', '3306')),
-            'user': os.getenv('DB_USER', 'root'),
-            'password': os.getenv('DB_PASSWORD', ''),
+            'user': required_env('DB_USER'),
+            'password': required_env('DB_PASSWORD'),
             'database': os.getenv('DB_NAME', 'plantvision_db')
         }
         
@@ -26,7 +27,7 @@ def create_default_user():
         cursor = conn.cursor(dictionary=True)
         
         # Cek apakah user sudah ada
-        email = 'cobasaja@example.com'
+        email = required_env('SEED_USER_EMAIL')
         cursor.execute("SELECT * FROM User WHERE email = %s", (email,))
         existing_user = cursor.fetchone()
         
@@ -34,18 +35,17 @@ def create_default_user():
             print(f"\n⚠️  User dengan email '{email}' sudah ada!")
             print(f"   Username: {existing_user.get('username', 'N/A')}")
             print(f"   Role: {existing_user.get('role', 'N/A')}")
-            print("\n✅ Anda bisa login dengan:")
+            print("Existing account left unchanged; use its current password or the reset flow.")
             print(f"   Email: {email}")
-            print(f"   Password: admin123")
             return
         
         # Hash password
-        password = 'admin123'
+        password = new_account_password('SEED_USER_PASSWORD')
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
         # Buat user default
         nama = 'User Test'
-        username = 'cobasaja'
+        username = required_env('SEED_USER_USERNAME')
         phone = None
         role = 'user'
         status_akun = 'aktif'
@@ -76,7 +76,6 @@ def create_default_user():
         print(f"\n📋 Informasi Login:")
         print(f"   Email: {email}")
         print(f"   Username: {username}")
-        print(f"   Password: {password}")
         print(f"   User ID: {user_id}")
         print(f"   Role: {role}")
         
@@ -85,7 +84,7 @@ def create_default_user():
         print("\n💡 Tips:")
         print("   1. Pastikan MySQL server berjalan")
         print("   2. Pastikan database 'plantvision_db' sudah dibuat")
-        print("   3. Cek konfigurasi database di script ini")
+        print("   3. Cek environment DB_HOST, DB_USER, DB_PASSWORD, DB_NAME")
     except Exception as e:
         print(f"\n❌ Error: {e}")
     finally:

@@ -413,7 +413,7 @@ def google_oauth_callback():
 
 @app.route('/api/auth/session', methods=['POST'])
 def auth_session():
-    """Verifikasi token sesi OAuth; return data user untuk disimpan di localStorage frontend."""
+    """Verifikasi token sesi OAuth; terbitkan server session untuk disimpan di localStorage frontend."""
     data = request.get_json(silent=True) or {}
     token = data.get('token') or request.args.get('token')
     if not token:
@@ -421,7 +421,8 @@ def auth_session():
     payload = verify_session_token(token)
     if not payload:
         return jsonify({"error": "Token tidak valid atau kadaluarsa"}), 401
-    return jsonify(payload), 200
+    # Issue a proper server-side session for this OAuth user
+    return security.login_response(payload)
 
 
 # --- API REGISTRASI (F-02) ---
@@ -547,16 +548,7 @@ def login_user():
         if USE_MOCK_DB and MOCK_DB_AVAILABLE:
             try:
                 user = mock_db.login_user(username_or_email, password)
-                return jsonify({
-                    "message": f"Login sukses. Selamat datang, {user['nama']}!",
-                    "user_id": user['user_id'],
-                    "nama": user['nama'],
-                    "email": user['email'],
-                    "username": user['username'],
-                    "role": user['role'],
-                    "status_akun": user['status_akun'],
-                    "provider": user.get('provider', 'local')
-                }), 200
+                return security.login_response(user)
             except Exception as e:
                 return jsonify({"error": str(e)}), 401
 
@@ -593,29 +585,13 @@ def login_user():
             print(f"Password match: {password_match}")
 
             if password_match:
-                # Password cocok!
-                user_id_val = user_data.get('user_id') or user_data.get('id')
-                status_val = user_data.get('status_akun') or user_data.get('status') or 'aktif'
-                provider_val = user_data.get('provider') or 'local'
-                return jsonify({
-                    "message": f"Login sukses. Selamat datang, {user_data['nama']}!",
-                    "user_id": user_id_val,
-                    "nama": user_data['nama'],
-                    "email": user_data['email'],
-                    "username": user_data['username'],
-                    "phone": user_data['phone'],
-                    "role": user_data['role'],
-                    "status": status_val,
-                    "provider": provider_val
-                }), 200
+                # Password cocok! Terbitkan server session via Security.
+                return security.login_response(user_data)
             else:
                 return jsonify({"error": "Username atau password salah"}), 401
         except Exception as e:
             print(f"Error detail saat verifikasi password: {str(e)}")
             return jsonify({"error": f"Terjadi kesalahan saat verifikasi: {str(e)}"}), 500
-        else:
-            # Password salah
-            return jsonify({"error": "Username atau password salah"}), 401
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -3242,6 +3218,10 @@ def serve_spa(path):
         return send_from_directory(FRONTEND_DIST, 'index.html')
     return jsonify({"error": "Not found"}), 404
 
+
+import sys
+from auth_security import Security
+security = Security(app, sys.modules[__name__])
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

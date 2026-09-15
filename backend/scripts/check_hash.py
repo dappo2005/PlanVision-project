@@ -1,9 +1,11 @@
-import os, bcrypt
-h = os.environ.get('HASH','').encode()
-p = os.environ.get('PASS','').encode()
-print('hash_len', len(h))
+"""Compare supplied password/hash; no default credentials and no value logging."""
+import bcrypt
+from _safe_config import required_env
+
+h = required_env('HASH').encode()
+p = required_env('PASSWORD').encode()
 try:
     print('check', bcrypt.checkpw(p, h))
-except Exception as e:
-    print('error', type(e).__name__, str(e))
+except ValueError:
+    raise SystemExit('Invalid bcrypt hash or password input')
 

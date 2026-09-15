@@ -1,10 +1,11 @@
+from _safe_config import required_env
 import mysql.connector
 
 try:
     conn = mysql.connector.connect(
         host='localhost',
-        user='root',
-        password='D@ffa_2005',
+        user=required_env('DB_USER'),
+        password=required_env('DB_PASSWORD'),
         database='plantvision_db'
     )
     cursor = conn.cursor()

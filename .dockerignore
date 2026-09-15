@@ -17,6 +17,10 @@ backend/.venv/
 backend/__pycache__/
 
 # Env & secrets
+.env*
+**/.env*
+!.env.example
+!backend/.env.example
 .env
 .env.local
 .env.production

@@ -54,3 +54,17 @@ CREATE TABLE IF NOT EXISTS DetectionHistory (
     FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE,
     INDEX idx_user_date (user_id, detection_date DESC)
 );
+
+-- Create the AuthSession table for server-side token-based authentication (aman: IF NOT EXISTS)
+CREATE TABLE IF NOT EXISTS AuthSession (
+    token_hash VARCHAR(64) PRIMARY KEY,
+    user_id INT NOT NULL,
+    kind VARCHAR(32) NOT NULL DEFAULT 'session',
+    expires_at BIGINT NOT NULL,
+    last_seen BIGINT NOT NULL,
+    credential_hash VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE,
+    INDEX idx_auth_user (user_id),
+    INDEX idx_auth_expires (expires_at)
+);

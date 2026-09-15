@@ -1,3 +1,4 @@
+from _safe_config import required_env
 import mysql.connector
 import os
 from dotenv import load_dotenv
@@ -7,8 +8,8 @@ load_dotenv()
 
 # Database config
 DB_HOST = os.getenv('DB_HOST', 'localhost')
-DB_USER = os.getenv('DB_USER', 'root')
-DB_PASSWORD = os.getenv('DB_PASSWORD', 'D@ffa_2005')
+DB_USER = required_env('DB_USER')
+DB_PASSWORD = required_env('DB_PASSWORD')
 DB_NAME = os.getenv('DB_NAME', 'plantvision_db')
 
 print("=" * 60)

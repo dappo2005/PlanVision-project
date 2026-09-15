@@ -1,4 +1,7 @@
 @echo off
+setlocal
+if not defined DB_HOST set "DB_HOST=localhost"
+if not defined DB_NAME set "DB_NAME=plantvision_db"
 REM =====================================================
 REM Setup News Table - PlantVision Database
 REM Run this script to create News table
@@ -23,14 +26,17 @@ echo [INFO] MySQL found!
 echo.
 
 REM Get MySQL credentials
-set /p MYSQL_USER="Enter MySQL username [default: root]: "
-if "%MYSQL_USER%"=="" set MYSQL_USER=root
+if not defined DB_USER set /p DB_USER="Enter intended MySQL username: "
+if not defined DB_USER (
+    echo [ERROR] DB_USER is required.
+    exit /b 1
+)
 
 echo.
 echo [INFO] Running setup_news.sql...
 echo [INFO] You will be prompted for MySQL password
 
-mysql -u %MYSQL_USER% -p plantvision_db < setup_news.sql
+mysql -h "%DB_HOST%" -u "%DB_USER%" -p "%DB_NAME%" < "%~dp0setup_news.sql"
 
 if %errorlevel% equ 0 (
     echo.

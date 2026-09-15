@@ -9,6 +9,7 @@ import { Separator } from "./ui/separator";
 import { Leaf, Camera, Network, BarChart3, FileText, Cloud, Linkedin, Github, Mail, Eye, EyeOff, User, Phone, Lock, AlertCircle, CheckCircle2, Instagram, ArrowLeft } from "lucide-react";
 import { useState, useEffect } from "react";
 import React from "react";
+import { saveStoredUser } from "../lib/auth-client";
 
 // Force localhost:5000 untuk development
 const API_URL = (import.meta as any).env?.VITE_API_URL || "";
@@ -119,63 +120,49 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       .then(response => response.json())
       .then(data => {
         if (data.message || data.user_id) {
-          // Login sukses
+          // Login sukses — server sekarang mengembalikan access_token & expires_at
           console.log("=== LOGIN RESPONSE ===");
           console.log("Full response:", data);
           console.log("Role from backend:", data.role);
           console.log("Email:", data.email);
-          
-          // ALWAYS verify role from backend, even if it exists in response
+
+          // Simpan sesi (termasuk access_token) ke localStorage via auth-client
+          try {
+            saveStoredUser(data);
+            console.log("✅ Session saved to localStorage with access_token");
+          } catch (err) {
+            console.error("❌ Failed to save session:", err);
+            // Fallback: simpan mentah agar user tidak stuck
+            localStorage.setItem('user', JSON.stringify(data));
+          }
+
+          // Verifikasi role dari backend (opsional, untuk sinkronisasi role terkini)
           if (data.email) {
             console.log("Verifying role from backend...");
             fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(data.email)}`, {
               headers: {
                 'Content-Type': 'application/json',
-                'ngrok-skip-browser-warning': 'true'
+                'ngrok-skip-browser-warning': 'true',
+                ...(data.access_token ? { 'Authorization': `Bearer ${data.access_token}` } : {})
               }
             })
               .then(res => {
-                console.log("Role verification response status:", res.status);
-                if (res.ok) {
-                  return res.json();
-                } else {
-                  throw new Error(`HTTP ${res.status}`);
-                }
+                if (res.ok) return res.json();
+                throw new Error(`HTTP ${res.status}`);
               })
               .then(roleData => {
-                console.log("Role verification data:", roleData);
-                if (roleData.role) {
-                  // ALWAYS use role from verification endpoint (most up-to-date)
+                if (roleData.role && roleData.role !== data.role) {
+                  console.log("✅ Role updated from verification:", roleData.role);
                   data.role = roleData.role;
-                  console.log("✅ Using verified role:", data.role);
-                } else {
-                  console.warn("⚠️ No role in verification response, using login response role:", data.role);
+                  try { saveStoredUser(data); } catch { localStorage.setItem('user', JSON.stringify(data)); }
                 }
-                // Store user data to localStorage
-                localStorage.setItem('user', JSON.stringify(data));
-                const saved = JSON.parse(localStorage.getItem('user') || '{}');
-                console.log("✅ User data saved to localStorage:", saved);
-                console.log("✅ Final role in localStorage:", saved.role);
                 onLogin();
               })
               .catch(err => {
-                console.error("❌ Error verifying role:", err);
-                // Fallback: use role from login response
-                if (!data.role) {
-                  data.role = 'user';
-                  console.warn("⚠️ No role in login response, defaulting to 'user'");
-                }
-                localStorage.setItem('user', JSON.stringify(data));
-                console.log("✅ User data saved (with fallback role):", JSON.parse(localStorage.getItem('user') || '{}'));
+                console.warn("⚠️ Role verification failed (non-blocking):", err.message);
                 onLogin();
               });
           } else {
-            // No email, can't verify - use what we have
-            if (!data.role) {
-              data.role = 'user';
-            }
-            localStorage.setItem('user', JSON.stringify(data));
-            console.log("✅ User data saved (no email for verification):", JSON.parse(localStorage.getItem('user') || '{}'));
             onLogin();
           }
           setLoginEmail("");

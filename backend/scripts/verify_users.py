@@ -1,9 +1,10 @@
+from _safe_config import required_env
 import mysql.connector, json, os
 
 CONFIG = {
     'host': os.getenv('DB_HOST', 'localhost'),
-    'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', 'D@ffa_2005'),
+    'user': required_env('DB_USER'),
+    'password': required_env('DB_PASSWORD'),
     'database': os.getenv('DB_NAME', 'plantvision_db'),
     'port': int(os.getenv('DB_PORT', '3306')),
 }

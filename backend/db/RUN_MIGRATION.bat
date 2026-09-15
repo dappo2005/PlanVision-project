@@ -1,4 +1,10 @@
 @echo off
+setlocal
+if not defined DB_HOST set "DB_HOST=localhost"
+if not defined DB_USER (
+    echo [ERROR] Set DB_USER to the intended MySQL account before running.
+    exit /b 1
+)
 REM ===================================================================
 REM BATCH FILE: MIGRATE TO DETECTION HISTORY
 REM ===================================================================
@@ -73,7 +79,7 @@ echo [2/2] Menjalankan migration script...
 echo.
 
 REM Jalankan SQL script
-%MYSQL_PATH% -u root -p -e "source %~dp0MIGRATE_TO_DETECTION_HISTORY.sql"
+%MYSQL_PATH% -h "%DB_HOST%" -u "%DB_USER%" -p -e "source %~dp0MIGRATE_TO_DETECTION_HISTORY.sql"
 
 if %ERRORLEVEL% EQU 0 (
     echo.

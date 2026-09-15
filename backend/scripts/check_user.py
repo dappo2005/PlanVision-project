@@ -1,3 +1,4 @@
+from _safe_config import required_env
 import mysql.connector
 
 try:
@@ -5,8 +6,8 @@ try:
     conn = mysql.connector.connect(
         host='localhost',
         port='3306',
-        user='root',
-        password='D@ffa_2005',
+        user=required_env('DB_USER'),
+        password=required_env('DB_PASSWORD'),
         database='plantvision_db'
     )
     
@@ -22,7 +23,6 @@ try:
         print(f"ID: {user['id']}")
         print(f"Nama: {user['nama']}")
         print(f"Username: {user['username']}")
-        print(f"Password Hash: {user['password']}")
         print(f"Role: {user['role']}")
     else:
         print(f"\nUser dengan username '{username}' tidak ditemukan!")

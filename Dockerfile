@@ -40,7 +40,7 @@ COPY --from=frontend-build /app/build ./build
 # Folder upload wajib ada
 RUN mkdir -p /app/backend/uploads
 
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED=1 APP_ENV=production FLASK_DEBUG=0
 EXPOSE 7860
 
 # HF Spaces expose port 7860. 1 worker agar model hanya dimuat sekali.

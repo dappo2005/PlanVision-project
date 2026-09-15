@@ -18,6 +18,11 @@ import Sidebar from "./components/Sidebar";
 import ResetPassword from "./pages/ResetPassword";
 import SetPasswordDialog from "./components/SetPasswordDialog";
 import { Toaster } from "./components/ui/sonner";
+import { authClient, getStoredUser, saveStoredUser, installAuthInterceptor } from "./lib/auth-client";
+
+// Install the global fetch interceptor so all existing fetch() calls
+// in components automatically include the Authorization header.
+installAuthInterceptor();
 
 // Protected Route Component
 function ProtectedRoute({ children, requireAdmin = false }: { children: React.ReactNode; requireAdmin?: boolean }) {
@@ -70,12 +75,7 @@ export default function App() {
 
   // Check auth status on mount and route change
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('user');
-      setIsAuthenticated(!!stored);
-    } catch (_) {
-      setIsAuthenticated(false);
-    }
+    setIsAuthenticated(!!getStoredUser());
   }, [location.pathname]);
 
   // Handle Google OAuth redirect callback (#/auth?token=...)
@@ -97,11 +97,15 @@ export default function App() {
         })
           .then((res) => res.json())
           .then((data) => {
-            if (data && data.user_id != null) {
-              localStorage.setItem('user', JSON.stringify(data));
+            if (data && data.user_id != null && data.access_token) {
+              try {
+                saveStoredUser(data);
+              } catch {
+                localStorage.setItem('user', JSON.stringify(data));
+              }
               setIsAuthenticated(true);
               // Jika user terdaftar via Google dan belum punya password lokal -> ajak buat kata sandi
-              if (data.provider === 'google') {
+              if (data.provider === 'google' && !data.has_password) {
                 setShowSetPassword(true);
                 setSetPasswordEmail(data.email || "");
               }
@@ -136,8 +140,14 @@ export default function App() {
     navigate("/dashboard");
   };
 
-  const handleLogout = () => {
-    try { localStorage.removeItem('user'); } catch (_) {}
+  const handleLogout = async () => {
+    try {
+      await authClient.logout();
+    } catch (err) {
+      console.warn('Logout error (non-blocking):', err);
+      // Ensure local storage is cleared even if server revocation fails
+      try { localStorage.removeItem('user'); } catch (_) {}
+    }
     setIsAuthenticated(false);
     navigate("/");
   };

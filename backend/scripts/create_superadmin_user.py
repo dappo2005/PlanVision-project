@@ -1,69 +1,61 @@
-import mysql.connector
-import bcrypt
+"""Create an operator-selected superadmin; never promote an unrelated account.
+
+This script writes to MySQL. Existing accounts are left unchanged; use the
+separate, confirmation-gated upgrade_to_superadmin.py for an intentional upgrade.
+"""
 import os
-import sys
+import bcrypt
+import mysql.connector
 from dotenv import load_dotenv
+from _safe_config import required_env, new_account_password
 
-if sys.platform == 'win32':
-    try:
-        sys.stdout.reconfigure(encoding='utf-8')
-    except Exception:
-        pass
-
-load_dotenv()
-
-DB_HOST = os.getenv('DB_HOST', 'localhost')
-DB_PORT = int(os.getenv('DB_PORT', '3306'))
-DB_USER = os.getenv('DB_USER', 'root')
-DB_PASSWORD = os.getenv('DB_PASSWORD', 'D@ffa_2005')
-DB_NAME = os.getenv('DB_NAME', 'plantvision_db')
 
 def create_or_upgrade_superadmin():
+    load_dotenv()
+    conn = None
+    cursor = None
     try:
-        conn = mysql.connector.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME
-        )
+        config = {
+            'host': os.getenv('DB_HOST', 'localhost'),
+            'port': int(os.getenv('DB_PORT', '3306')),
+            'user': required_env('DB_USER'),
+            'password': required_env('DB_PASSWORD'),
+            'database': os.getenv('DB_NAME', 'plantvision_db'),
+        }
+        admin_email = required_env('SEED_ADMIN_EMAIL')
+        admin_username = required_env('SEED_ADMIN_USERNAME')
+        conn = mysql.connector.connect(**config)
         cursor = conn.cursor(dictionary=True)
+        cursor.execute('SELECT user_id FROM User WHERE email = %s OR username = %s',
+                       (admin_email, admin_username))
+        if cursor.fetchone():
+            print('Account already exists; no role or password was changed.')
+            return 1
+        admin_password = new_account_password('SEED_ADMIN_PASSWORD')
+        hashed_password = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        cursor.execute(
+            'INSERT INTO User (nama, email, username, phone, password, role, status_akun, accept_terms) '
+            'VALUES (%s, %s, %s, %s, %s, %s, %s, %s)',
+            ('Administrator', admin_email, admin_username, None, hashed_password, 'superadmin', 'aktif', 1),
+        )
+        conn.commit()
+        print('Superadmin created. Use the privately supplied password; it is not logged.')
+        return 0
+    except ValueError as exc:
+        # Validation messages contain field names only, never values.
+        print(f'Configuration error: {exc}')
+        return 1
+    except mysql.connector.Error:
+        if conn is not None:
+            conn.rollback()
+        print('Database operation failed; check schema and configured connection privately.')
+        return 1
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conn is not None:
+            conn.close()
 
-        # 1. Upgrade user dappo@gmai.com to superadmin if exists
-        cursor.execute("SELECT * FROM User WHERE email = %s", ('dappo@gmai.com',))
-        dappo_user = cursor.fetchone()
-        if dappo_user:
-            cursor.execute("UPDATE User SET role = 'superadmin' WHERE user_id = %s", (dappo_user['user_id'],))
-            conn.commit()
-            print("[OK] Account 'dappo@gmai.com' has been upgraded to superadmin!")
-
-        # 2. Create standard superadmin account (admin@planvision.com)
-        admin_email = 'admin@planvision.com'
-        admin_pass = 'admin123'
-        
-        cursor.execute("SELECT * FROM User WHERE email = %s", (admin_email,))
-        existing_admin = cursor.fetchone()
-
-        if existing_admin:
-            cursor.execute("UPDATE User SET role = 'superadmin' WHERE user_id = %s", (existing_admin['user_id'],))
-            conn.commit()
-            print(f"[OK] Account '{admin_email}' already exists and ensured as superadmin!")
-        else:
-            hashed_pass = bcrypt.hashpw(admin_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-            query = """
-                INSERT INTO User (nama, email, username, phone, password, role, status_akun, accept_terms)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            values = ('Super Admin', admin_email, 'superadmin', '081234567890', hashed_pass, 'superadmin', 'aktif', 1)
-            cursor.execute(query, values)
-            conn.commit()
-            print(f"[OK] Created new Superadmin account: '{admin_email}' with password: '{admin_pass}'")
-
-        cursor.close()
-        conn.close()
-
-    except Exception as e:
-        print(f"[ERROR] {e}")
 
 if __name__ == '__main__':
-    create_or_upgrade_superadmin()
+    raise SystemExit(create_or_upgrade_superadmin())

@@ -1,4 +1,5 @@
 @echo off
+setlocal
 REM Setup Database Script untuk PlanVision
 REM Author: GitHub Copilot
 REM Updated: 2025-11-16
@@ -8,10 +9,13 @@ echo   PlanVision - Database Setup
 echo ================================================
 echo.
 
-set DB_HOST=localhost
-set DB_USER=root
-set DB_PASSWORD=D@ffa_2005
-set DB_NAME=plantvision_db
+if not defined DB_HOST set "DB_HOST=localhost"
+if not defined DB_USER (
+    echo [ERROR] Set DB_USER to the intended MySQL account before running.
+    exit /b 1
+)
+REM MySQL -p prompts securely; no password is stored in this file or command line.
+if not defined DB_NAME set "DB_NAME=plantvision_db"
 
 REM Set MySQL path (adjust if your MySQL is installed elsewhere)
 set MYSQL_PATH=C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe
@@ -48,7 +52,7 @@ echo [OK] Database sudah ada
 echo.
 
 echo [2/3] Menjalankan setup_database.sql...
-"%MYSQL_PATH%" -h%DB_HOST% -u%DB_USER% -p%DB_PASSWORD% %DB_NAME% < setup_database.sql
+"%MYSQL_PATH%" -h%DB_HOST% -u%DB_USER% -p%DB_PASSWORD% %DB_NAME% < "%~dp0setup_database.sql"
 if errorlevel 1 (
     echo [ERROR] Gagal menjalankan SQL script
     pause

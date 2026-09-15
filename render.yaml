@@ -3,8 +3,10 @@ services:
     name: plantvision-backend
     env: python
     buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: cd backend && python app.py
+    startCommand: cd backend && gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 1 --threads 8 --timeout 300 app:app
     envVars:
+      - key: APP_ENV
+        value: production
       - key: FLASK_ENV
         value: production
       - key: FLASK_DEBUG

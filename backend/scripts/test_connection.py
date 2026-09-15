@@ -1,3 +1,4 @@
+from _safe_config import required_env
 import mysql.connector
 
 print("Mencoba menghubungkan ke MySQL...")
@@ -7,8 +8,8 @@ try:
     connection = mysql.connector.connect(
         host='localhost',
         port='3306',
-        user='root',
-        password='D@ffa_2005'
+        user=required_env('DB_USER'),
+        password=required_env('DB_PASSWORD')
     )
     
     if connection.is_connected():
