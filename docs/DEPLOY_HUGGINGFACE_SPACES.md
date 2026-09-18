@@ -12,9 +12,9 @@ Hugging Face Spaces menggunakan **Docker SDK**. Satu container menangani fronten
 - MySQL **eksternal** yang bisa diakses publik. Contoh gratis:
   - [freesqldatabase.com](https://www.freesqldatabase.com) (host `sql*.freesqldatabase.com`, port `3306`)
   - [aiven.io](https://aiven.io) / [Railway](https://railway.app) MySQL
-- Repo git lokal ini sudah berisi semua yang dibutuhkan:
+- Repo git lokal ini harus berisi semua yang dibutuhkan:
   - `Dockerfile` (multi-stage: build frontend + runtime Flask/TensorFlow CPU)
-  - Model ML sudah di-commit (`git status` bersih).
+  - Model ML yang dipilih sudah di-commit dalam folder `models/`.
 
 ---
 
@@ -71,7 +71,10 @@ Di halaman Space: **Settings → Variables and secrets** → **New secret**:
 
 | Key                     | Nilai contoh                          | Keterangan                              |
 |-------------------------|----------------------------------------|-----------------------------------------|
-| `DB_HOST`               | `sqlXXXX.freesqldatabase.com`          | Host MySQL eksternal                    |
+| `APP_ENV`               | `production`                            | Mode runtime produksi                   |
+| `FLASK_ENV`             | `production`                            | Mode Flask produksi                     |
+| `SECRET_KEY`            | secret acak minimal 32 karakter         | Kunci sesi aplikasi                     |
+| `DB_HOST`               | `sqlXXXX.freesqldatabase.com`           | Host MySQL eksternal                    |
 | `DB_PORT`               | `3306`                                 | Port MySQL                              |
 | `DB_USER`               | `user`                                 | User MySQL                              |
 | `DB_PASSWORD`           | `***`                                  | Password MySQL                          |
@@ -82,8 +85,9 @@ Di halaman Space: **Settings → Variables and secrets** → **New secret**:
 | `FRONTEND_URL`          | `https://<USERNAME>-plantvision.hf.space` | URL Space untuk frontend            |
 | `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_HOST` / `SMTP_PORT` | *(opsional)* | Email untuk reset password |
 
-> Jangan set `USE_MOCK_DB` — tanpa variabel itu aplikasi otomatis memakai MySQL
-> asli. Jangan set `SKIP_MODEL_LOAD` agar model ML aktif.
+Tambahkan `FRONTEND_URL` juga ke daftar `ALLOWED_ORIGINS` (dipisahkan koma jika
+ada lebih dari satu origin). Jangan set `USE_MOCK_DB` atau `SKIP_MODEL_LOAD` pada
+produksi.
 
 ---
 

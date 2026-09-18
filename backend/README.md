@@ -1,95 +1,71 @@
-# PlanVision Backend - Organized Structure
+# Backend PlantVision
 
-This is the Flask backend API for PlanVision, serving disease detection predictions and managing user authentication.
+Backend adalah API Flask untuk autentikasi, inference model, riwayat deteksi,
+feedback, berita, chat AI, dan administrasi pengguna.
 
-## Structure
+## Struktur
 
-```
+```text
 backend/
-├── app.py                     # Main Flask API (runtime)
-├── disease_info.py            # Disease metadata (runtime)
-├── requirements.txt           # Production runtime dependencies
-├── uploads/                   # User-uploaded images (ignored by Git)
-├── db/                        # Database schema & setup scripts
-│   ├── setup_database.sql
-│   ├── setup_detection_history.sql
-│   └── README.md
-├── ml/                        # ML training & evaluation (dev only)
-│   ├── train.py, train_augmented.py
-│   ├── evaluate.py, create_split.py, dataset_check.py
-│   ├── requirements-ml.txt
-│   └── README.md
-└── scripts/                   # Diagnostic utilities (dev only)
-    ├── test_inference.py, test_connection.py
-    ├── check_user.py, update_database.py
-    └── README.md
+├── app.py                 aplikasi Flask dan endpoint API
+├── auth_security.py       sesi bearer token dan proteksi role/ownership
+├── runtime_config.py      validasi konfigurasi runtime
+├── disease_info.py        metadata dan rekomendasi penyakit
+├── mock_db.py             penyimpanan in-memory untuk development/test
+├── setup_db.py            runner schema MySQL
+├── db/                    schema dan migration SQL
+├── scripts/               utilitas diagnostik/administrasi
+├── tests/                 tes otomatis pytest
+└── requirements.txt       dependencies runtime Python
 ```
 
-## Quick Start
+## Menjalankan
 
-### 1. Install Runtime Dependencies
+Dari root repository:
+
 ```powershell
-pip install -r requirements.txt
+python -m pip install -r backend\requirements.txt
+python backend\app.py
 ```
 
-### 2. Setup Database
+Backend berjalan di `http://localhost:5000`. Untuk mock database atau startup
+tanpa model, lihat [panduan pengembangan](../docs/DEVELOPMENT.md).
+
+## Endpoint penting
+
+| Method | Endpoint | Keterangan |
+| --- | --- | --- |
+| `GET` | `/api/health` | Status aplikasi, database, dan model |
+| `POST` | `/api/register` | Registrasi akun |
+| `POST` | `/api/login` | Login dan penerbitan access token |
+| `GET` | `/api/auth/me` | Profil sesi aktif |
+| `POST` | `/api/logout` | Mengakhiri sesi |
+| `POST` | `/api/predict` | Deteksi dari citra daun |
+| `GET` | `/api/detection-history/<user_id>` | Riwayat milik pengguna |
+| `GET` | `/api/news` | Daftar berita |
+| `POST` | `/api/chat` | Chat AI (memerlukan konfigurasi provider) |
+
+Endpoint admin, feedback, statistik, dan CRUD berita dapat dilihat langsung pada
+route di `app.py`. Endpoint terproteksi memerlukan header
+`Authorization: Bearer <access_token>` dan tetap memvalidasi role atau kepemilikan
+data di server.
+
+## Database
+
+Siapkan kredensial melalui environment variable, pastikan database sudah ada,
+lalu jalankan:
+
 ```powershell
-cd db
-.\SETUP_DATABASE.bat
-cd ..
+python backend\setup_db.py
 ```
 
-### 3. Start Backend Server
+Script memproses schema dalam `backend/db/` dengan safe mode. Jangan menggunakan
+`--force` pada database yang berisi data penting.
+
+## Pengujian
+
 ```powershell
-python app.py
+python -m pytest backend\tests -q
 ```
 
-Backend runs on http://localhost:5000 by default.
-
-### 4. Environment Variables (Optional)
-```powershell
-$env:DB_HOST = "localhost"
-$env:DB_USER = "root"
-$env:DB_PASSWORD = "your_password"
-$env:DB_NAME = "plantvision_db"
-$env:PORT = "5000"
-```
-
-## API Endpoints
-
-- `POST /api/register` - Register new user
-- `POST /api/login` - User login
-- `POST /api/predict` - Disease detection (requires image upload)
-- `GET /api/detection-history/<user_id>` - Get user's detection history
-- `GET /api/uploads/<filename>` - Serve uploaded images
-
-## Development Tools
-
-### Train New Model
-```powershell
-cd ml
-python train.py --epochs 20 --batch_size 32
-```
-
-### Test Model Inference
-```powershell
-cd scripts
-python test_inference.py "../../Citrus Leaf Disease Image/Canker/1.jpg"
-```
-
-### Database Diagnostics
-```powershell
-cd scripts
-python verify_users.py
-python test_connection.py
-```
-
-## Notes
-
-- **Production**: Only need `app.py`, `disease_info.py`, `requirements.txt`, and `uploads/`
-- **Development**: Use `ml/` for training, `scripts/` for debugging
-- **Database**: Schema in `db/`, one-time setup required
-- **Models**: Stored in `../../models/` (ignored by Git)
-- **Data**: Training datasets in `../../data/` (ignored by Git)
-
-See individual folder READMEs for detailed documentation.
+Lihat [panduan pengujian](../docs/TESTING.md) untuk pemeriksaan tambahan.

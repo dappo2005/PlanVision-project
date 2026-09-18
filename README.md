@@ -1,191 +1,93 @@
 # PlantVision
 
-Web application for citrus leaf disease detection using deep learning. Built with React/TypeScript frontend and Flask/Python backend with TensorFlow EfficientNet model.
+PlantVision adalah aplikasi web untuk mendeteksi penyakit daun jeruk dari citra.
+Aplikasi menggabungkan frontend React, API Flask, database MySQL, dan model
+TensorFlow untuk klasifikasi lima kondisi daun.
 
-## Tech Stack
+## Fitur utama
 
-- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, Radix UI
-- **Backend**: Flask, Python, TensorFlow, MySQL
-- **ML Model**: EfficientNet for 5-class citrus disease classification
+- registrasi, login, Google OAuth, dan reset password;
+- deteksi penyakit daun serta rekomendasi penanganan;
+- riwayat deteksi dan ekspor laporan;
+- feedback pengguna, berita, dan dashboard admin;
+- chat AI opsional melalui Gemini;
+- mock database untuk pengembangan dan pengujian terisolasi.
 
-## Project Structure
+## Teknologi
 
-```
-PlanVision-project-1/
-├── src/                    # React frontend source
-│   ├── components/         # UI components
-│   ├── guidelines/         # Development guidelines
-│   └── Attributions.md     # Credits & attributions
-├── backend/
-│   ├── app.py              # Main Flask API
-│   ├── disease_info.py     # Disease metadata
-│   ├── db/                 # Database schema & setup
-│   ├── ml/                 # ML training scripts
-│   ├── scripts/            # Diagnostic utilities
-│   ├── uploads/            # Uploaded images (gitignored)
-│   └── requirements.txt    # Python dependencies
-├── public/                 # Static assets
-├── docs/                   # Documentation
-├── data/                   # Training datasets (gitignored)
-├── models/                 # Trained ML models (gitignored)
-├── package.json            # Node.js dependencies
-├── vite.config.ts          # Vite configuration
-└── railway.json            # Railway deployment config
-```
+- **Frontend:** React 18, TypeScript, Vite, Radix UI
+- **Backend:** Flask, Python 3.11, Gunicorn
+- **Data:** MySQL atau mock database in-memory
+- **Machine learning:** TensorFlow 2.15, MobileNetV2/EfficientNet
+- **Deployment:** Docker, Railway, Render, Vercel, atau Hugging Face Spaces
 
-## Prerequisites
+## Struktur repository
 
-- Python 3.8-3.11 (TensorFlow compatibility)
-- Node.js 18+
-- MySQL 8.0+ (optional, mock DB available)
-
-## Setup & Run Locally
-
-### 1. Install Backend Dependencies
-
-```bash
-cd backend
-pip install -r requirements.txt
+```text
+├── backend/           API Flask, keamanan, schema, dan utilitas backend
+├── docs/              dokumentasi pengembangan, testing, dan deployment
+├── models/            model TensorFlow yang dipakai saat inference
+├── public/            aset statis frontend
+├── src/               aplikasi React/TypeScript
+├── Dockerfile         image gabungan frontend dan backend
+├── package.json       dependencies dan script Node.js
+└── vite.config.ts     konfigurasi Vite (port lokal 3000)
 ```
 
-### 2. Setup Database (Optional)
-
-If using real MySQL instead of mock database:
-
-```bash
-cd db
-# Windows
-.\SETUP_DATABASE.bat
-# Linux/Mac
-bash setup_database.sh
-```
-
-### 3. Start Backend
-
-```bash
-cd backend
-python app.py
-```
-
-Backend runs on `http://localhost:5000`.
-
-### 4. Start Frontend
-
-Open a new terminal:
-
-```bash
-npm install
-npm run dev
-```
-
-Frontend runs on `http://localhost:5173`.
-
-### 5. Test the App
-
-1. Open `http://localhost:5173` in browser
-2. Register or login with test credentials
-3. Navigate to Disease Detector
-4. Upload a citrus leaf image
-5. View detection results with recommendations
-
-## Environment Variables
-
-Create `backend/.env`:
-
-```env
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=your_password
-DB_NAME=plantvision_db
-PORT=5000
-
-# Mock mode (no MySQL required)
-USE_MOCK_DB=1
-SKIP_MODEL_LOAD=1
-```
-
-## API Endpoints
-
-### Public
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/health` | Health check |
-| POST | `/api/register` | Register new user |
-| POST | `/api/login` | User login |
-| GET | `/api/news` | Get all news |
-| POST | `/api/feedback/submit-guest` | Submit guest feedback |
-
-### Protected (User Login Required)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/predict` | Disease detection |
-| GET | `/api/detection-history/<user_id>` | Detection history |
-| POST | `/api/feedback/submit` | Submit feedback |
-| GET | `/api/feedback/public` | Get approved feedback |
-
-### Admin Only
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/admin/feedback/pending` | Pending feedbacks |
-| POST | `/api/admin/feedback/<id>/response` | Respond to feedback |
-| POST | `/api/news/create` | Create news |
-| PUT | `/api/news/<id>` | Update news |
-| DELETE | `/api/news/<id>` | Delete news |
-
-## Testing
-
-See [TESTING_GUIDE.md](TESTING_GUIDE.md) for detailed API testing instructions.
-
-Quick test with PowerShell:
+## Mulai cepat
 
 ```powershell
-# Health check
-Invoke-RestMethod -Uri "http://localhost:5000/api/health" -Method GET
-
-# Register
-Invoke-RestMethod -Uri "http://localhost:5000/api/register" -Method POST `
-  -Body '{"nama":"Test","email":"test@test.com","password":"pass123","acceptTerms":true}' `
-  -ContentType "application/json"
-
-# Login
-Invoke-RestMethod -Uri "http://localhost:5000/api/login" -Method POST `
-  -Body '{"username":"testuser","password":"pass123"}' `
-  -ContentType "application/json"
+npm install
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r backend\requirements.txt
+npm run dev:all
 ```
 
-## Troubleshooting
+Setelah berjalan:
 
-### Backend won't start
-- Ensure Python 3.8-3.11 is installed (`python --version`)
-- Install dependencies: `pip install -r backend/requirements.txt`
+- frontend: `http://localhost:3000`
+- backend: `http://localhost:5000`
+- health check: `http://localhost:5000/api/health`
 
-### Port 5000 already in use
-```bash
-netstat -ano | findstr :5000
-taskkill /PID <PID> /F
+Mode lokal tanpa MySQL dan tanpa memuat model dapat diaktifkan sebelum backend
+dijalankan:
+
+```powershell
+$env:USE_MOCK_DB = "1"
+$env:SKIP_MODEL_LOAD = "1"
+npm run dev:all
 ```
 
-### Frontend can't connect to backend
-- Verify backend is running on port 5000
-- Check CORS settings in `backend/app.py`
-- Verify `VITE_API_URL` in frontend `.env`
+Lihat [panduan pengembangan](docs/DEVELOPMENT.md) untuk konfigurasi database,
+model, OAuth, email, dan cara menjalankan service secara terpisah.
 
-### Model not found
-- Set `SKIP_MODEL_LOAD=1` in `backend/.env` for testing without ML model
-- Or train a model: `cd backend/ml && python train.py --epochs 20`
+## Pengujian
 
-## Team
+```powershell
+python -m pytest backend\tests -q
+npm run build
+```
 
-- Daffa - Developer
-- Aisyah - Developer
-- Refael - Developer
-- Imam - Developer
+Rincian skenario tersedia dalam [panduan pengujian](docs/TESTING.md).
 
-## Credits
+## Deployment
 
-- [shadcn/ui](https://ui.shadcn.com/) - UI components (MIT License)
-- [Unsplash](https://unsplash.com) - Photos used in design
+- Konfigurasi Railway: `railway.json`
+- Konfigurasi Render: `render.yaml`
+- Konfigurasi frontend Vercel: `vercel.json`
+- Image aplikasi penuh: `Dockerfile`
+- Panduan khusus: [Hugging Face Spaces](docs/DEPLOY_HUGGINGFACE_SPACES.md)
+
+Jangan commit file `.env` atau kredensial. Pada produksi, gunakan secret/environment
+variables dari penyedia deployment dan jangan aktifkan `USE_MOCK_DB` maupun
+`SKIP_MODEL_LOAD`.
+
+## Tim
+
+- Daffa — Developer
+- Aisyah — Developer
+- Refael — Developer
+- Imam — Developer
+
+Lihat [atribusi aset dan komponen](docs/ATTRIBUTIONS.md).
