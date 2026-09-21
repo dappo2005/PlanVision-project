@@ -1,5 +1,6 @@
 flask
 flask-cors
+waitress
 gunicorn; sys_platform != "win32"
 mysql-connector-python
 bcrypt

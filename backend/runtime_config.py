@@ -65,6 +65,13 @@ def load_runtime_config(environ=None):
         # Suitable only for a local development/test process; never production.
         key = secrets.token_urlsafe(48)
 
+    try:
+        max_upload_mb = int(env.get('MAX_UPLOAD_MB', '8'))
+    except ValueError as exc:
+        raise ValueError('MAX_UPLOAD_MB must be an integer') from exc
+    if not 1 <= max_upload_mb <= 16:
+        raise ValueError('MAX_UPLOAD_MB must be between 1 and 16')
+
     default_origins = 'http://localhost:3000,http://127.0.0.1:3000'
     origins = [part.strip() for part in env.get('ALLOWED_ORIGINS', default_origins).split(',')]
     origins = [_origin(item, 'ALLOWED_ORIGINS', protected) for item in origins]
@@ -96,8 +103,30 @@ def load_runtime_config(environ=None):
         'DEBUG': debug,
         'SECRET_KEY': key,
         'ALLOWED_ORIGINS': origins,
+        # Semua integrasi dibaca di satu tempat agar route tidak bergantung
+        # langsung pada environment process.
+        'DB_HOST': env.get('DB_HOST', 'localhost'),
+        'DB_PORT': env.get('DB_PORT', '3306'),
+        'DB_USER': env.get('DB_USER', 'root'),
+        'DB_PASSWORD': env.get('DB_PASSWORD', ''),
+        'DB_NAME': env.get('DB_NAME', 'plantvision_db'),
+        'USE_MOCK_DB': env.get('USE_MOCK_DB', '0').strip().lower() in TRUE_VALUES,
+        'SKIP_MODEL_LOAD': env.get('SKIP_MODEL_LOAD', '0').strip().lower() in TRUE_VALUES,
+        'MODEL_FILENAME': env.get('MODEL_FILENAME', 'citrus_mobilenetv2_finetuned.h5'),
+        'GEMINI_API_KEY': env.get('GEMINI_API_KEY', ''),
+        'GOOGLE_OAUTH_CLIENT_ID': oauth_client,
+        'GOOGLE_OAUTH_CLIENT_SECRET': oauth_secret,
+        'OAUTH_REDIRECT_URI': env.get(
+            'OAUTH_REDIRECT_URI', 'http://localhost:5000/auth/google/callback'),
+        'FRONTEND_URL': frontend,
+        'SMTP_HOST': env.get('SMTP_HOST', 'smtp.gmail.com'),
+        'SMTP_PORT': int(env.get('SMTP_PORT', '587')),
+        'SMTP_USER': env.get('SMTP_USER', ''),
+        'SMTP_PASSWORD': env.get('SMTP_PASSWORD', ''),
+        'SMTP_FROM_NAME': env.get('SMTP_FROM_NAME', 'PlantVision'),
         'SESSION_COOKIE_HTTPONLY': True,
         'SESSION_COOKIE_SECURE': protected,
         'SESSION_COOKIE_SAMESITE': 'Lax',
         'SESSION_COOKIE_NAME': 'plantvision_oauth_state',
+        'MAX_CONTENT_LENGTH': max_upload_mb * 1024 * 1024,
     }

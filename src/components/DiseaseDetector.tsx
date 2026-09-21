@@ -14,6 +14,22 @@ const ngrokHeaders = {
   'ngrok-skip-browser-warning': 'true'
 };
 
+function dataUrlToFile(dataUrl: string, filename: string): File {
+  const [metadata, encodedData] = dataUrl.split(',', 2);
+  const match = metadata.match(/^data:([^;]+);base64$/);
+  if (!match || !encodedData) {
+    throw new Error("Format gambar tidak valid. Silakan upload ulang foto.");
+  }
+
+  const binary = window.atob(encodedData);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return new File([bytes], filename, { type: match[1] });
+}
+
 interface DetectionResult {
   disease: string;
   confidence: number;
@@ -181,6 +197,7 @@ export default function DiseaseDetector({
   onNavigateToContact
 }: DiseaseDetectorProps) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<DetectionResult | null>(null);
 
@@ -193,6 +210,7 @@ export default function DiseaseDetector({
         if (parsed.image && parsed.result) {
           // Set gambar dan hasil deteksi
           setSelectedImage(parsed.image);
+          setSelectedFile(null);
           setResult(parsed.result);
           
           // Clear localStorage setelah digunakan
@@ -223,6 +241,7 @@ export default function DiseaseDetector({
       const reader = new FileReader();
       reader.onload = (event) => {
         setSelectedImage(event.target?.result as string);
+        setSelectedFile(file);
         setResult(null);
         toast.success("Foto berhasil diupload", {
           description: "Klik 'Deteksi Penyakit' untuk menganalisis"
@@ -246,10 +265,10 @@ export default function DiseaseDetector({
       const userData = localStorage.getItem('user');
       const userId = userData ? JSON.parse(userData).user_id : null;
 
-      // Convert base64 image to File object
-      const response = await fetch(selectedImage);
-      const blob = await response.blob();
-      const file = new File([blob], "leaf_image.jpg", { type: "image/jpeg" });
+      // Use the original upload whenever possible. Drone data is converted
+      // locally instead of fetched as a data: URL, which CSP intentionally
+      // blocks for network requests.
+      const file = selectedFile ?? dataUrlToFile(selectedImage, "leaf_image.jpg");
 
       // Create FormData
       const formData = new FormData();
@@ -716,6 +735,7 @@ export default function DiseaseDetector({
                         variant="outline"
                         onClick={() => {
                           setSelectedImage(null);
+                          setSelectedFile(null);
                           setResult(null);
                         }}
                       >

@@ -201,6 +201,9 @@ data/
 Citrus Leaf Disease Image/
 models/
 backend/uploads/
+backups/
+.runtime/
+logs/
 
 # ML research/training assets (local only)
 README_ML.md

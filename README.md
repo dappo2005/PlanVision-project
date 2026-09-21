@@ -83,6 +83,68 @@ Jangan commit file `.env` atau kredensial. Pada produksi, gunakan secret/environ
 variables dari penyedia deployment dan jangan aktifkan `USE_MOCK_DB` maupun
 `SKIP_MODEL_LOAD`.
 
+### Runtime lokal Windows
+
+Build frontend dan backend produksi dijalankan sebagai satu origin melalui
+Waitress yang hanya mendengarkan `127.0.0.1:5000`:
+
+```powershell
+npm run build
+.\scripts\start-plantvision.ps1
+Invoke-WebRequest http://127.0.0.1:5000/health
+.\scripts\stop-plantvision.ps1
+```
+
+Untuk proses foreground yang nantinya dipakai Windows Task Scheduler:
+
+```powershell
+.\scripts\run-production.ps1
+```
+
+Log runtime berada di `logs/` dan PID sementara berada di `.runtime/`; keduanya
+diabaikan Git.
+
+Task startup Windows dapat dipasang dari PowerShell Administrator:
+
+```powershell
+.\scripts\install-scheduled-task.ps1
+.\scripts\start-scheduled-task.ps1
+Get-ScheduledTask -TaskName "PlantVision Backend"
+```
+
+Task berjalan sebagai `SYSTEM`, menunggu 45 detik setelah startup Windows,
+dan menulis log ke `logs/scheduled-*.log`. Untuk menghapus task:
+
+```powershell
+.\scripts\remove-scheduled-task.ps1
+```
+
+Untuk menghentikan instance task tanpa menghapus trigger startup:
+
+```powershell
+.\scripts\stop-scheduled-task.ps1
+```
+
+### Tailscale Funnel
+
+Task `PlantVision Backend` harus berstatus siap sebelum Funnel diaktifkan. Funnel
+yang digunakan proyek ini meneruskan HTTPS publik ke Waitress lokal:
+
+```powershell
+tailscale status
+tailscale funnel --bg --yes http://127.0.0.1:5000
+tailscale funnel status
+```
+
+URL produksi saat ini adalah
+`https://plantvision.tailb5f614.ts.net/`. URL hanya tersedia ketika laptop menyala,
+Tailscale terhubung, dan task backend berjalan. Untuk menutup akses publik tanpa
+menghapus task backend:
+
+```powershell
+tailscale funnel --https=443 off
+```
+
 ## Tim
 
 - Daffa — Developer

@@ -7,6 +7,7 @@ import {
   User as UserIcon
 } from "lucide-react";
 import { toast } from "sonner";
+import { getAuthHeaders } from "../lib/auth-client";
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || "";
 
@@ -99,6 +100,64 @@ const timeAgo = (dateString: string) => {
   if (diffMins < 60) return `${diffMins} menit lalu`;
   if (diffHours < 24) return `${diffHours} jam lalu`;
   return `${diffDays} hari lalu`;
+};
+
+const AuthenticatedDetectionImage: React.FC<{ imageUrl: string; alt: string }> = ({ imageUrl, alt }) => {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let createdUrl: string | null = null;
+
+    setObjectUrl(null);
+    setImageError(false);
+
+    fetch(`${API_URL}${imageUrl}`, {
+      headers: {
+        ...getAuthHeaders(),
+        'ngrok-skip-browser-warning': 'true',
+      },
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Image request failed: ${response.status}`);
+        return response.blob();
+      })
+      .then((blob) => {
+        if (controller.signal.aborted) return;
+        createdUrl = URL.createObjectURL(blob);
+        setObjectUrl(createdUrl);
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setImageError(true);
+      });
+
+    return () => {
+      controller.abort();
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
+  }, [imageUrl]);
+
+  if (imageError) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-400 p-6 text-center">
+        <ImageIcon className="w-9 h-9" />
+        <span className="text-sm">Gambar tidak dapat dimuat</span>
+      </div>
+    );
+  }
+
+  if (!objectUrl) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-100">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" />
+      </div>
+    );
+  }
+
+  return <img src={objectUrl} alt={alt} className="w-full h-full object-cover object-center" />;
 };
 
 // ─── Admin View ────────────────────────────────────────────────────────────────
@@ -337,30 +396,14 @@ const AdminDetectionAudit: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden 
                   hover:shadow-lg hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
               >
-                {/* Image - Standardized uniform aspect ratio & size */}
-                <div className="relative h-48 sm:h-52 w-full aspect-[4/3] bg-gray-100 overflow-hidden border-b border-gray-100">
-                  <img
-                    src={`${API_URL}${record.image_url}`}
-                    alt={record.disease_name}
-                    className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = `data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YzZjRmNiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE0IiBmaWxsPSIjOWNhM2FmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+`;
-                    }}
-                  />
-                  {/* Disease badge */}
-                  <div className="absolute top-2.5 left-2.5">
-                    <span className={`px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm backdrop-blur-sm ${getDiseaseColor(record.disease_name)}`}>
-                      {record.disease_name}
-                    </span>
-                  </div>
-                  {/* Severity dot */}
-                  <div className="absolute top-2.5 right-2.5">
-                    <div className={`w-3.5 h-3.5 rounded-full shadow-md ring-2 ring-white ${getSeverityDot(record.severity)}`} title={`Severity: ${record.severity}`} />
-                  </div>
-                </div>
-
                 {/* Body */}
                 <div className="p-4">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${getDiseaseColor(record.disease_name)}`}>
+                      {record.disease_name}
+                    </span>
+                    <div className={`w-3.5 h-3.5 rounded-full shadow-sm ring-2 ring-white mt-1 ${getSeverityDot(record.severity)}`} title={`Severity: ${record.severity}`} />
+                  </div>
                   {/* User attribution */}
                   <div className="flex items-center gap-2 mb-3 pb-3 border-b border-gray-100">
                     <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
@@ -385,6 +428,7 @@ const AdminDetectionAudit: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     <Clock className="w-3 h-3" />
                     {timeAgo(record.detection_date)} · {formatDate(record.detection_date)}
                   </div>
+                  <p className="text-xs text-purple-600 font-medium mt-3">Klik untuk melihat detail dan foto</p>
                 </div>
               </div>
             ))}
@@ -433,15 +477,15 @@ const AdminDetectionAudit: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       {/* ─── Detail Modal ─────────────────────────────────────────────── */}
       {selectedRecord && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4"
           onClick={() => setSelectedRecord(null)}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 z-10 flex items-center justify-between">
+            <div className="bg-white border-b border-gray-100 px-6 py-4 z-10 flex items-center justify-between flex-shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Detail Audit Deteksi</h2>
                 <p className="text-xs text-gray-500 mt-0.5">ID #{selectedRecord.id}</p>
@@ -454,7 +498,7 @@ const AdminDetectionAudit: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               </button>
             </div>
 
-            <div className="p-6 space-y-5">
+            <div className="p-4 sm:p-6 space-y-5 overflow-y-auto overscroll-contain">
               {/* User attribution banner */}
               <div className="flex items-center gap-3 bg-purple-50 border border-purple-100 rounded-xl p-4">
                 <div className="w-10 h-10 rounded-full bg-purple-200 flex items-center justify-center flex-shrink-0">
@@ -473,12 +517,7 @@ const AdminDetectionAudit: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               {/* Image + basic info */}
               <div className="grid md:grid-cols-2 gap-5">
                 <div className="rounded-2xl overflow-hidden shadow-sm border border-gray-100 bg-gray-100 h-56 sm:h-64 w-full aspect-[4/3]">
-                  <img
-                    src={`${API_URL}${selectedRecord.image_url}`}
-                    alt={selectedRecord.disease_name}
-                    className="w-full h-full object-cover object-center"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
+                  <AuthenticatedDetectionImage imageUrl={selectedRecord.image_url} alt={selectedRecord.disease_name} />
                 </div>
                 <div className="space-y-3">
                   <span className={`inline-block px-4 py-1.5 rounded-lg text-sm font-bold ${getDiseaseColor(selectedRecord.disease_name)}`}>
@@ -703,19 +742,13 @@ const UserDetectionHistory: React.FC<{ userId: number }> = ({ userId }) => {
                   hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-1"
                 onClick={() => setSelectedRecord(record)}
               >
-                <div className="relative h-48 sm:h-52 w-full aspect-[4/3] bg-gray-100 overflow-hidden border-b border-green-50">
-                  <img
-                    src={`${API_URL}${record.image_url}`}
-                    alt={record.disease_name}
-                    className="w-full h-full object-cover object-center"
-                  />
-                  <div className="absolute top-2 right-2">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${getDiseaseColor(record.disease_name)}`}>
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <span className={`px-3 py-1 rounded-lg text-xs font-bold ${getDiseaseColor(record.disease_name)}`}>
                       {record.disease_name}
                     </span>
+                    <ImageIcon className="w-5 h-5 text-green-500 flex-shrink-0" />
                   </div>
-                </div>
-                <div className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <span className={`px-3 py-1 rounded-lg text-xs font-semibold border ${getSeverityColor(record.severity)}`}>
                       Severity: {record.severity}
@@ -727,6 +760,7 @@ const UserDetectionHistory: React.FC<{ userId: number }> = ({ userId }) => {
                     <Calendar className="w-3 h-3" />
                     {formatDate(record.detection_date)}
                   </div>
+                  <p className="text-xs text-green-700 font-medium mt-3">Klik untuk melihat detail dan foto</p>
                 </div>
               </div>
             ))}
@@ -737,14 +771,14 @@ const UserDetectionHistory: React.FC<{ userId: number }> = ({ userId }) => {
       {/* Detail Modal (Personal) */}
       {selectedRecord && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4"
           onClick={() => setSelectedRecord(null)}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col my-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 z-10">
+            <div className="bg-white border-b border-gray-200 p-4 sm:p-6 z-10 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-gray-900">Detail Deteksi</h2>
                 <button onClick={() => setSelectedRecord(null)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
@@ -752,10 +786,10 @@ const UserDetectionHistory: React.FC<{ userId: number }> = ({ userId }) => {
                 </button>
               </div>
             </div>
-            <div className="p-6 space-y-6">
+            <div className="p-4 sm:p-6 space-y-6 overflow-y-auto overscroll-contain">
               <div className="grid md:grid-cols-2 gap-6">
                 <div className="relative rounded-2xl overflow-hidden shadow-sm border border-gray-100 bg-gray-100 h-56 sm:h-64 w-full aspect-[4/3]">
-                  <img src={`${API_URL}${selectedRecord.image_url}`} alt={selectedRecord.disease_name} className="w-full h-full object-cover object-center" />
+                  <AuthenticatedDetectionImage imageUrl={selectedRecord.image_url} alt={selectedRecord.disease_name} />
                 </div>
                 <div className="space-y-4">
                   <span className={`inline-block px-4 py-2 rounded-lg text-sm font-bold ${getDiseaseColor(selectedRecord.disease_name)}`}>

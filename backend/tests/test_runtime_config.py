@@ -105,6 +105,13 @@ class RuntimeConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'APP_ENV'):
                 load_runtime_config(env)
 
+    def test_upload_limit_is_bounded(self):
+        self.assertEqual(load_runtime_config({})['MAX_CONTENT_LENGTH'], 8 * 1024 * 1024)
+        for value in ('0', '17', 'not-a-number'):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, 'MAX_UPLOAD_MB'):
+                    load_runtime_config({'MAX_UPLOAD_MB': value})
+
     def test_legacy_production_env_is_not_silently_development(self):
         with self.assertRaisesRegex(ValueError, 'SECRET_KEY'):
             load_runtime_config({'FLASK_ENV': 'production'})

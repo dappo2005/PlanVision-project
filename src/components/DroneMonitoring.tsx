@@ -19,8 +19,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-// Default ke localhost, user bisa ubah di UI
-const DEFAULT_API_URL = (import.meta as any).env?.VITE_API_URL || "";
+// Frontend dan backend selalu memakai origin yang sama. Saat development,
+// Vite meneruskan /api ke Flask melalui konfigurasi proxy.
+const API_URL = "";
 
 interface DetectionResult {
   disease: string;
@@ -38,53 +39,8 @@ interface DroneMonitoringProps {
   onNavigateToDashboard?: () => void;
 }
 
-// Fungsi-fungsi ini akan didefinisikan di dalam component untuk menggunakan apiUrl state
-
 export default function DroneMonitoring({ onNavigateToDashboard }: DroneMonitoringProps) {
   const navigate = useNavigate();
-  
-  // Auto-detect: coba localhost dulu, jika gagal bisa ubah manual
-  const [apiUrl, setApiUrl] = useState(() => {
-    // Cek dari localStorage dulu (jika user sudah set sebelumnya)
-    const saved = localStorage.getItem('drone_monitoring_api_url');
-    return saved || DEFAULT_API_URL;
-  });
-  
-  // Save ke localStorage saat berubah
-  useEffect(() => {
-    if (apiUrl) {
-      localStorage.setItem('drone_monitoring_api_url', apiUrl);
-    }
-  }, [apiUrl]);
-  
-  // Auto-detect localhost saat component mount
-  useEffect(() => {
-    const testLocalhost = async () => {
-      // Jika apiUrl bukan localhost, coba test localhost dulu
-      if (apiUrl !== "http://localhost:5000" && apiUrl !== DEFAULT_API_URL) {
-        try {
-          const testResponse = await fetch("http://localhost:5000/api/dataset/random-stream", {
-            method: 'GET',
-            signal: AbortSignal.timeout(3000) // 3 detik timeout
-          });
-          if (testResponse.ok) {
-            // Localhost bisa diakses! Update ke localhost
-            setApiUrl("http://localhost:5000");
-            toast.success("Backend terdeteksi di localhost:5000", {
-              description: "URL backend otomatis diubah ke localhost"
-            });
-          }
-        } catch (error) {
-          // Localhost tidak bisa diakses, tetap pakai URL yang ada
-          console.log("Localhost tidak bisa diakses, menggunakan URL:", apiUrl);
-        }
-      }
-    };
-    
-    // Test setelah 1 detik (biarkan component render dulu)
-    const timer = setTimeout(testLocalhost, 1000);
-    return () => clearTimeout(timer);
-  }, []); // Hanya sekali saat mount
   const [isSimulationMode, setIsSimulationMode] = useState(true); // Default: simulasi mode
   const [isStreaming, setIsStreaming] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
@@ -111,11 +67,11 @@ export default function DroneMonitoring({ onNavigateToDashboard }: DroneMonitori
   
   // Fungsi untuk mendapatkan URL gambar dari dataset
   const getDummyStreamImageUrl = () => {
-    return `${apiUrl}/api/dataset/random-stream?t=${Date.now()}`;
+    return `${API_URL}/api/dataset/random-stream?t=${Date.now()}`;
   };
 
   const getDummyCaptureImageUrl = () => {
-    return `${apiUrl}/api/dataset/random-capture?t=${Date.now()}`;
+    return `${API_URL}/api/dataset/random-capture?t=${Date.now()}`;
   };
   
   // State untuk menyimpan URL gambar yang sedang ditampilkan di stream
@@ -213,13 +169,13 @@ export default function DroneMonitoring({ onNavigateToDashboard }: DroneMonitori
             if (error.name === 'AbortError') {
               setStreamError("Timeout: Backend tidak merespons dalam 5 detik");
               toast.error("Koneksi timeout", {
-                description: `Backend di ${apiUrl} tidak merespons. Coba ubah URL backend atau pastikan Flask berjalan.`,
+                description: "Backend tidak merespons. Pastikan layanan PlantVision berjalan.",
                 duration: 10000
               });
             } else {
               setStreamError(`Tidak bisa akses backend: ${error.message}`);
               toast.error("Gagal menghubungkan ke backend", {
-                description: `Pastikan backend Flask berjalan di ${apiUrl}. Error: ${error.message}`,
+                description: `Pastikan layanan PlantVision berjalan. Error: ${error.message}`,
                 duration: 10000
               });
             }
@@ -421,7 +377,7 @@ export default function DroneMonitoring({ onNavigateToDashboard }: DroneMonitori
       }
 
       // Kirim ke API /api/predict
-      const apiResponse = await fetch(`${apiUrl}/api/predict`, {
+      const apiResponse = await fetch(`${API_URL}/api/predict`, {
         method: 'POST',
         body: formData,
       });
@@ -669,7 +625,7 @@ export default function DroneMonitoring({ onNavigateToDashboard }: DroneMonitori
         .catch(error => {
           console.error("Endpoint test failed:", error);
               toast.error("Backend endpoint error", {
-                description: `Tidak bisa akses /api/dataset/random-stream. Pastikan backend Flask berjalan di ${apiUrl}`
+                description: "Tidak bisa mengakses simulasi. Pastikan layanan PlantVision berjalan."
               });
         });
     }
@@ -776,7 +732,7 @@ export default function DroneMonitoring({ onNavigateToDashboard }: DroneMonitori
       }
 
       // Kirim ke API
-      const apiResponse = await fetch(`${apiUrl}/api/predict`, {
+      const apiResponse = await fetch(`${API_URL}/api/predict`, {
         method: 'POST',
         body: formData,
       });
@@ -1247,72 +1203,6 @@ export default function DroneMonitoring({ onNavigateToDashboard }: DroneMonitori
               )}
             </div>
 
-            {/* Backend URL Setting untuk Mode Simulasi */}
-            {isSimulationMode && (
-              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  🔧 Backend URL (jika timeout, ubah ke localhost:5000)
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={apiUrl}
-                    onChange={(e) => setApiUrl(e.target.value)}
-                    placeholder="http://localhost:5000"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm"
-                    disabled={isStreaming}
-                  />
-                  <Button
-                    onClick={() => {
-                      // Test koneksi
-                      const testUrl = `${apiUrl}/api/dataset/random-stream`;
-                      toast.info("Menguji koneksi backend...");
-                      const controller = new AbortController();
-                      const timeout = setTimeout(() => controller.abort(), 3000);
-                      fetch(testUrl, { signal: controller.signal })
-                        .then(() => {
-                          clearTimeout(timeout);
-                          toast.success("Backend terhubung!", {
-                            description: `Berhasil terhubung ke ${apiUrl}`
-                          });
-                        })
-                        .catch(() => {
-                          clearTimeout(timeout);
-                          toast.error("Backend tidak bisa diakses", {
-                            description: `Tidak bisa akses ${apiUrl}. Pastikan Flask berjalan.`
-                          });
-                        });
-                    }}
-                    disabled={isStreaming}
-                    className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs px-3"
-                    size="sm"
-                  >
-                    Test
-                  </Button>
-                </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  💡 <strong>Tip:</strong> Pastikan URL sesuai dengan tempat backend Flask berjalan. 
-                  Jika backend di komputer ini, gunakan <code className="bg-gray-100 px-1 rounded">http://localhost:5000</code>
-                </p>
-                {apiUrl !== "http://localhost:5000" && apiUrl.includes("192.168") && (
-                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-                    <p className="text-blue-700 mb-1">
-                      ⚠️ Saat ini menggunakan: <strong>{apiUrl}</strong>
-                    </p>
-                    <button
-                      onClick={() => {
-                        setApiUrl("http://localhost:5000");
-                        toast.info("URL diubah ke localhost:5000");
-                      }}
-                      className="text-blue-600 underline hover:text-blue-800"
-                    >
-                      Klik untuk ubah ke localhost:5000
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
             <div className="flex flex-col md:flex-row gap-4 items-end">
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1447,7 +1337,7 @@ export default function DroneMonitoring({ onNavigateToDashboard }: DroneMonitori
                           </p>
                           {isSimulationMode && (
                             <p className="text-xs text-yellow-300 mt-2">
-                              ⚠️ Jika lama, pastikan backend Flask berjalan di {apiUrl}
+                              ⚠️ Jika lama, pastikan layanan PlantVision berjalan.
                             </p>
                           )}
                         </div>

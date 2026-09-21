@@ -35,6 +35,10 @@ class Security:
     def guard(self):
         if request.method == 'OPTIONS' or not request.path.startswith('/api/'):
             return None
+        # Blueprint menambahkan prefix pada nama endpoint (contoh:
+        # ``auth.login_user``). Aturan keamanan tetap memakai nama fungsi agar
+        # kontraknya sama untuk route lama dan route modular.
+        endpoint = (request.endpoint or '').rsplit('.', 1)[-1]
         public = {'register_user', 'login_user', 'health_check', 'forgot_password',
                   'verify_reset_token', 'reset_password', 'auth_session',
                   'submit_feedback_guest', 'track_feedback', 'get_public_feedbacks',
@@ -45,10 +49,10 @@ class Security:
             g.current_user = self.authenticate(g.auth_token) if g.auth_token else None
         except Exception:
             return jsonify(error='Authentication service unavailable'), 503
-        if request.endpoint in public:
+        if endpoint in public:
             if header and not g.current_user:
                 return jsonify(error='Authentication required'), 401
-            if request.endpoint == 'get_all_news' and request.args.get('published_only', 'true').lower() != 'true':
+            if endpoint == 'get_all_news' and request.args.get('published_only', 'true').lower() != 'true':
                 if not g.current_user:
                     return jsonify(error='Authentication required'), 401
                 if g.current_user.get('role') != 'superadmin':
@@ -69,7 +73,7 @@ class Security:
             for field in ('user_id', 'admin_id', 'created_by'):
                 if field in source and str(source[field]) != str(uid):
                     return jsonify(error='Identity does not match session'), 403
-        if request.endpoint == 'get_user_role':
+        if endpoint == 'get_user_role':
             email = request.args.get('email', g.current_user['email'])
             if email.lower() != g.current_user['email'].lower() and not admin:
                 return jsonify(error='Access denied'), 403
