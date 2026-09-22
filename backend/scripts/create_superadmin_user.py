@@ -22,6 +22,9 @@ def create_or_upgrade_superadmin():
             'password': required_env('DB_PASSWORD'),
             'database': os.getenv('DB_NAME', 'plantvision_db'),
         }
+        admin_name = (os.getenv('SEED_ADMIN_NAME') or 'Administrator').strip()
+        if not admin_name:
+            raise ValueError('SEED_ADMIN_NAME must not be empty')
         admin_email = required_env('SEED_ADMIN_EMAIL')
         admin_username = required_env('SEED_ADMIN_USERNAME')
         conn = mysql.connector.connect(**config)
@@ -36,7 +39,7 @@ def create_or_upgrade_superadmin():
         cursor.execute(
             'INSERT INTO User (nama, email, username, phone, password, role, status_akun, accept_terms) '
             'VALUES (%s, %s, %s, %s, %s, %s, %s, %s)',
-            ('Administrator', admin_email, admin_username, None, hashed_password, 'superadmin', 'aktif', 1),
+            (admin_name, admin_email, admin_username, None, hashed_password, 'superadmin', 'aktif', 1),
         )
         conn.commit()
         print('Superadmin created. Use the privately supplied password; it is not logged.')

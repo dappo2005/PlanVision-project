@@ -27,7 +27,6 @@ def health_check():
     return jsonify({"status": "ready" if ready else "unavailable"}), 200 if ready else 503
 
 # --- SPA: serve built React frontend (single container deployment) ---
-FRONTEND_DIST = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'build'))
 
 @bp.route('/')
 def serve_index():

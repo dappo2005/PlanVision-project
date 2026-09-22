@@ -112,6 +112,42 @@ def test_login_issues_server_session_and_me(client):
     assert 'password' not in response.json
     assert 'reset_token' not in response.json
 
+
+def test_production_cookie_session_hides_token_and_requires_csrf(client):
+    previous = backend.app.config['AUTH_ALLOW_BEARER']
+    backend.app.config['AUTH_ALLOW_BEARER'] = False
+    try:
+        response = client.post(
+            '/api/login',
+            json={'username': 'testuser', 'password': 'Test-password-123'},
+        )
+        assert response.status_code == 200
+        assert 'access_token' not in response.json
+        session_cookie = client.get_cookie('plantvision_session')
+        csrf_cookie = client.get_cookie('plantvision_csrf')
+        assert session_cookie is not None and session_cookie.http_only
+        assert csrf_cookie is not None and not csrf_cookie.http_only
+        assert client.get('/api/auth/me').status_code == 200
+        assert client.post('/api/logout').status_code == 403
+        assert client.post(
+            '/api/logout', headers={'X-CSRF-Token': csrf_cookie.value}
+        ).status_code == 200
+        assert client.get('/api/auth/me').status_code == 401
+    finally:
+        backend.app.config['AUTH_ALLOW_BEARER'] = previous
+
+
+def test_production_rejects_bearer_authentication(client):
+    user = login(client)
+    previous = backend.app.config['AUTH_ALLOW_BEARER']
+    backend.app.config['AUTH_ALLOW_BEARER'] = False
+    client.delete_cookie('plantvision_session')
+    client.delete_cookie('plantvision_csrf')
+    try:
+        assert client.get('/api/auth/me', headers=bearer(user)).status_code == 401
+    finally:
+        backend.app.config['AUTH_ALLOW_BEARER'] = previous
+
 @pytest.mark.parametrize('method,path', [
     ('GET', '/api/admin/users'), ('POST', '/api/admin/users'),
     ('PUT', '/api/admin/users/2'), ('DELETE', '/api/admin/users/2'),
@@ -246,6 +282,8 @@ def test_security_headers_are_added(client):
     assert response.headers['X-Content-Type-Options'] == 'nosniff'
     assert response.headers['X-Frame-Options'] == 'DENY'
     assert "default-src 'self'" in response.headers['Content-Security-Policy']
+    assert "https://fonts.googleapis.com" in response.headers['Content-Security-Policy']
+    assert "https://fonts.gstatic.com" in response.headers['Content-Security-Policy']
 
 def test_login_rate_limit(client):
     backend.request_security.hits.clear()

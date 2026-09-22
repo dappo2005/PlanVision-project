@@ -13,7 +13,6 @@ import { saveStoredUser } from "../lib/auth-client";
 
 // Force localhost:5000 untuk development
 const API_URL = (import.meta as any).env?.VITE_API_URL || "";
-console.log("[LandingPage] Using API_URL:", API_URL);
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -120,51 +119,15 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       .then(response => response.json())
       .then(data => {
         if (data.message || data.user_id) {
-          // Login sukses — server sekarang mengembalikan access_token & expires_at
-          console.log("=== LOGIN RESPONSE ===");
-          console.log("Full response:", data);
-          console.log("Role from backend:", data.role);
-          console.log("Email:", data.email);
-
-          // Simpan sesi (termasuk access_token) ke localStorage via auth-client
+          // Token sesi disimpan backend dalam cookie HttpOnly. Frontend hanya
+          // menyimpan profil non-sensitif untuk kebutuhan tampilan.
           try {
             saveStoredUser(data);
-            console.log("✅ Session saved to localStorage with access_token");
           } catch (err) {
-            console.error("❌ Failed to save session:", err);
-            // Fallback: simpan mentah agar user tidak stuck
-            localStorage.setItem('user', JSON.stringify(data));
+            setLoginError("Respons login tidak valid. Silakan coba lagi.");
+            return;
           }
-
-          // Verifikasi role dari backend (opsional, untuk sinkronisasi role terkini)
-          if (data.email) {
-            console.log("Verifying role from backend...");
-            fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(data.email)}`, {
-              headers: {
-                'Content-Type': 'application/json',
-                'ngrok-skip-browser-warning': 'true',
-                ...(data.access_token ? { 'Authorization': `Bearer ${data.access_token}` } : {})
-              }
-            })
-              .then(res => {
-                if (res.ok) return res.json();
-                throw new Error(`HTTP ${res.status}`);
-              })
-              .then(roleData => {
-                if (roleData.role && roleData.role !== data.role) {
-                  console.log("✅ Role updated from verification:", roleData.role);
-                  data.role = roleData.role;
-                  try { saveStoredUser(data); } catch { localStorage.setItem('user', JSON.stringify(data)); }
-                }
-                onLogin();
-              })
-              .catch(err => {
-                console.warn("⚠️ Role verification failed (non-blocking):", err.message);
-                onLogin();
-              });
-          } else {
-            onLogin();
-          }
+          onLogin();
           setLoginEmail("");
           setLoginPassword("");
         } else if (data.error) {
@@ -230,7 +193,6 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       .then(data => {
         if (data.message) {
           // Registration sukses
-          console.log("Registration successful:", data);
           setRegisterSuccess(true);
           setTimeout(() => {
             // Auto switch to login tab after registration
@@ -401,6 +363,7 @@ export default function LandingPage({ onLogin, showLoginDialog, setShowLoginDial
       <Dialog open={showLoginDialog} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader className="text-center">
+            <DialogTitle className="sr-only">Masuk atau daftar PlantVision</DialogTitle>
             <div className="flex items-center justify-center mb-2">
               <img 
                 src="/images/plantvision-logo.png" 

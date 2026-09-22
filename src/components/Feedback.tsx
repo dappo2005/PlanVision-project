@@ -20,7 +20,6 @@ export default function Feedback({ onLogout, onNavigateToDashboard }: FeedbackPr
 const API_URL = (import.meta as any).env?.VITE_API_URL || "";
 
 // Debug: Log API URL saat component mount
-console.log("[Feedback] API_URL:", API_URL);
   
   const [formData, setFormData] = useState({
     rating: "5",
@@ -127,7 +126,6 @@ console.log("[Feedback] API_URL:", API_URL);
         toast.success("Terima kasih atas masukan Anda!", {
           description: "Feedback Anda sangat berharga untuk pengembangan PlantVision"
         });
-        console.log("[Feedback] Submit berhasil:", data);
         
         // Reload feedbacks setelah 500ms (biarkan database commit dulu)
         setTimeout(() => {
@@ -145,7 +143,6 @@ console.log("[Feedback] API_URL:", API_URL);
             })
             .then(data => {
               setPublicFeedbacks(data.feedbacks || []);
-              console.log("[Feedback] Reloaded feedbacks:", data.feedbacks?.length || 0);
               toast.success("Feedback Anda sudah muncul di riwayat ulasan!", {
                 description: "Terima kasih atas kontribusi Anda"
               });

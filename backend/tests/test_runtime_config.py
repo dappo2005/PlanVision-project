@@ -94,6 +94,7 @@ class RuntimeConfigTests(unittest.TestCase):
             env['ALLOWED_ORIGINS'] += ', https://admin.example'
             result = load_runtime_config(env)
             self.assertTrue(result['SESSION_COOKIE_SECURE'])
+            self.assertFalse(result['AUTH_ALLOW_BEARER'])
             self.assertFalse(result['DEBUG'])
             self.assertEqual(result['ALLOWED_ORIGINS'], [
                 'https://plantvision.example', 'https://admin.example'])

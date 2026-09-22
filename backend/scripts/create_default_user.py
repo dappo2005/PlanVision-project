@@ -44,7 +44,9 @@ def create_default_user():
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
         # Buat user default
-        nama = 'User Test'
+        nama = (os.getenv('SEED_USER_NAME') or 'User Test').strip()
+        if not nama:
+            raise ValueError('SEED_USER_NAME must not be empty')
         username = required_env('SEED_USER_USERNAME')
         phone = None
         role = 'user'

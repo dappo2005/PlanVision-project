@@ -167,31 +167,22 @@ export default function Dashboard({
           if (user.email) {
             try {
               const API_URL = (import.meta as any).env?.VITE_API_URL || "";
-              console.log('[Dashboard] Syncing role from:', `${API_URL}/api/user/role?email=${encodeURIComponent(user.email)}`);
               const response = await fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(user.email)}`, {
                 headers: {
                   'Content-Type': 'application/json',
                   'ngrok-skip-browser-warning': 'true'
                 }
               });
-              console.log('[Dashboard] Role sync response status:', response.status);
               if (response.ok) {
                 const data = await response.json();
-                console.log('[Dashboard] Role sync response data:', data);
                 if (data.role) {
                   // ALWAYS update localStorage with role from backend (force sync)
                   const updatedUser = { ...user, role: data.role };
                   localStorage.setItem('user', JSON.stringify(updatedUser));
                   user.role = data.role;
-                  console.log('[Dashboard] Role FORCE SYNC from backend:', data.role, '(was:', user.role || 'undefined', ')');
                 }
-              } else {
-                const errorData = await response.json().catch(() => ({}));
-                console.error('[Dashboard] Role sync failed:', response.status, errorData);
               }
-            } catch (error) {
-              console.error('[Dashboard] Could not sync role from backend:', error);
-            }
+            } catch { /* Gunakan profil lokal sampai validasi berikutnya. */ }
           }
           
           setUserData({
@@ -200,8 +191,6 @@ export default function Dashboard({
             role: user.role || 'user'
           });
           setUserRole(user.role || 'user');
-          console.log('[Dashboard] User role:', user.role);
-          console.log('[Dashboard] User data:', user);
         }
       } catch (_) {
         setUserRole('user');

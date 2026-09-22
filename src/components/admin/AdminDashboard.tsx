@@ -177,7 +177,6 @@ export default function AdminDashboard({ onLogout, onNavigateToDashboard }: Admi
         const id = user.user_id || user.id;
         const role = user.role;
         
-        console.log('[AdminDashboard] User data:', { id, role });
         
         // Check if user is superadmin
         if (role === 'superadmin') {

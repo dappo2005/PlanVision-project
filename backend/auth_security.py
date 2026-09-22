@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from threading import RLock
 
-from flask import g, jsonify, request
+from flask import g, jsonify, redirect, request
 
 
 def digest(value):
@@ -44,12 +44,18 @@ class Security:
                   'submit_feedback_guest', 'track_feedback', 'get_public_feedbacks',
                   'get_all_news', 'get_news_detail'}
         header = request.headers.get('Authorization', '')
+        bearer_allowed = self.app.config.get('AUTH_ALLOW_BEARER', False)
+        bearer_token = header[7:] if bearer_allowed and header.startswith('Bearer ') else ''
+        cookie_token = request.cookies.get(self.app.config['AUTH_COOKIE_NAME'], '')
         try:
-            g.auth_token = header[7:] if header.startswith('Bearer ') else ''
+            g.auth_token = bearer_token or cookie_token
+            g.auth_via_cookie = bool(cookie_token and not bearer_token)
             g.current_user = self.authenticate(g.auth_token) if g.auth_token else None
         except Exception:
             return jsonify(error='Authentication service unavailable'), 503
         if endpoint in public:
+            # Cookie yang kedaluwarsa tidak boleh menghalangi login ulang.
+            # Header Bearer eksplisit yang tidak valid tetap ditolak.
             if header and not g.current_user:
                 return jsonify(error='Authentication required'), 401
             if endpoint == 'get_all_news' and request.args.get('published_only', 'true').lower() != 'true':
@@ -60,6 +66,11 @@ class Security:
             return None
         if not g.current_user:
             return jsonify(error='Authentication required'), 401
+        if g.auth_via_cookie and request.method in {'POST', 'PUT', 'PATCH', 'DELETE'}:
+            csrf_cookie = request.cookies.get(self.app.config['CSRF_COOKIE_NAME'], '')
+            csrf_header = request.headers.get('X-CSRF-Token', '')
+            if not csrf_cookie or not csrf_header or not secrets.compare_digest(csrf_cookie, csrf_header):
+                return jsonify(error='CSRF validation failed'), 403
         admin = g.current_user.get('role') == 'superadmin'
         if (request.path.startswith('/api/admin/') or request.endpoint in {'create_news', 'update_news', 'delete_news'}) and not admin:
             return jsonify(error='Superadmin access required'), 403
@@ -83,7 +94,31 @@ class Security:
 
     def logout(self):
         self.revoke_token(g.auth_token)
-        return jsonify(message='Logged out')
+        response = jsonify(message='Logged out')
+        self.clear_auth_cookies(response)
+        return response
+
+    def set_auth_cookies(self, response, token, expires_at):
+        """Simpan token sesi hanya pada cookie HttpOnly dan terbitkan CSRF pair."""
+        secure = bool(self.app.config.get('SESSION_COOKIE_SECURE'))
+        same_site = self.app.config.get('SESSION_COOKIE_SAMESITE', 'Lax')
+        max_age = max(0, int(expires_at - self.clock()))
+        response.set_cookie(
+            self.app.config['AUTH_COOKIE_NAME'], token, max_age=max_age,
+            secure=secure, httponly=True, samesite=same_site, path='/',
+        )
+        response.set_cookie(
+            self.app.config['CSRF_COOKIE_NAME'], secrets.token_urlsafe(32), max_age=max_age,
+            secure=secure, httponly=False, samesite=same_site, path='/',
+        )
+
+    def clear_auth_cookies(self, response):
+        for name in (self.app.config['AUTH_COOKIE_NAME'], self.app.config['CSRF_COOKIE_NAME']):
+            response.delete_cookie(
+                name, secure=bool(self.app.config.get('SESSION_COOKIE_SECURE')),
+                httponly=name == self.app.config['AUTH_COOKIE_NAME'],
+                samesite=self.app.config.get('SESSION_COOKIE_SAMESITE', 'Lax'), path='/',
+            )
 
     def revoke_token(self, token):
         key = digest(token)
@@ -196,17 +231,35 @@ class Security:
             if current:
                 self.revoke_all(current['user_id'])
             return jsonify(error='Username atau password salah'), 401
+        issued = self.issue(current)
+        token = issued['access_token']
         result = safe_user(current)
-        result.update(self.issue(current))
+        result['expires_at'] = issued['expires_at']
+        if self.app.config.get('AUTH_ALLOW_BEARER', False):
+            result['access_token'] = token
         result['message'] = f"Login sukses. Selamat datang, {current['nama']}!"
         # Indicate whether the user has a locally-set password (useful for Google OAuth users)
         pwd = current.get('password', '')
         result['has_password'] = bool(pwd and not pwd.startswith('oauth'))
-        return jsonify(result), 200
+        response = jsonify(result)
+        self.set_auth_cookies(response, token, datetime.fromisoformat(issued['expires_at']).timestamp())
+        return response, 200
+
+    def login_redirect(self, user, location):
+        """Buat sesi dan redirect OAuth tanpa menaruh kredensial pada URL."""
+        current = self.user(user['user_id'])
+        if not current or current.get('status_akun') not in ('aktif', 'active'):
+            return redirect(f'{location}?auth_error=inactive', code=302)
+        issued = self.issue(current)
+        response = redirect(location, code=302)
+        self.set_auth_cookies(
+            response, issued['access_token'],
+            datetime.fromisoformat(issued['expires_at']).timestamp(),
+        )
+        return response
 
     def me(self):
-        header = request.headers.get('Authorization', '')
-        user = self.authenticate(header[7:]) if header.startswith('Bearer ') else None
+        user = getattr(g, 'current_user', None)
         if not user:
             return jsonify(error='Authentication required'), 401
         return jsonify(safe_user(user))

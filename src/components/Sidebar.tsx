@@ -4,6 +4,7 @@ import { Button } from "./ui/button";
 import {
   Sheet,
   SheetContent,
+  SheetTitle,
   SheetTrigger,
 } from "./ui/sheet";
 import {
@@ -340,6 +341,7 @@ export default function Sidebar({
         </Button>
       </SheetTrigger>
       <SheetContent side="left" className="w-80 overflow-y-auto p-0">
+        <SheetTitle className="sr-only">Menu navigasi PlantVision</SheetTitle>
         {/* Logo */}
         <div className="flex items-center justify-between h-16 border-b border-gray-200 px-4">
           <img 

@@ -128,5 +128,10 @@ def load_runtime_config(environ=None):
         'SESSION_COOKIE_SECURE': protected,
         'SESSION_COOKIE_SAMESITE': 'Lax',
         'SESSION_COOKIE_NAME': 'plantvision_oauth_state',
+        # Cookie Flask di atas hanya untuk state OAuth. Sesi API memakai nama
+        # terpisah agar token autentikasi tidak pernah dapat dibaca JavaScript.
+        'AUTH_COOKIE_NAME': 'plantvision_session',
+        'CSRF_COOKIE_NAME': 'plantvision_csrf',
+        'AUTH_ALLOW_BEARER': not protected,
         'MAX_CONTENT_LENGTH': max_upload_mb * 1024 * 1024,
     }

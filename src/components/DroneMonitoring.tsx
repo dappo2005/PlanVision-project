@@ -740,7 +740,6 @@ export default function DroneMonitoring({ onNavigateToDashboard }: DroneMonitori
       if (!apiResponse.ok) {
         // Jika error, coba gunakan mock data untuk testing (hanya di mode simulasi)
         if (isSimulationMode) {
-          console.log("API error, menggunakan mock data untuk testing");
           // Mock data untuk testing - random disease
           const mockDiseases = [
             { 
@@ -789,10 +788,8 @@ export default function DroneMonitoring({ onNavigateToDashboard }: DroneMonitori
       }
 
       const data = await apiResponse.json();
-      console.log("Auto-detect response:", data); // Debug log
       
       const confidenceValue = parseFloat(data.confidence.replace('%', ''));
-      console.log("Confidence value:", confidenceValue, "Class:", data.class); // Debug log
       
       // Hanya tampilkan reminder jika confidence >= 70% dan bukan "Sehat"
       if (confidenceValue >= 70 && data.class !== "Sehat") {
@@ -808,7 +805,6 @@ export default function DroneMonitoring({ onNavigateToDashboard }: DroneMonitori
           class: data.class
         };
 
-        console.log("Setting autoDetectResult:", mappedResult); // Debug log
         setAutoDetectResult(mappedResult);
         
         // Mark gambar ini sudah dideteksi
@@ -830,7 +826,6 @@ export default function DroneMonitoring({ onNavigateToDashboard }: DroneMonitori
         }
       } else {
         // Jika sehat atau confidence rendah, clear reminder tapi tetap mark gambar sudah dideteksi
-        console.log("No disease detected or low confidence:", confidenceValue, data.class);
         setAutoDetectResult(null);
         
         // Mark gambar ini sudah dideteksi (meskipun tidak ada penyakit)

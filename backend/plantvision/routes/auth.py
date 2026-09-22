@@ -10,7 +10,7 @@ from flask import Blueprint, current_app, jsonify, redirect, request
 from plantvision.services import (
     DB_NAME, FRONTEND_URL, GOOGLE_AUTH_URL, GOOGLE_OAUTH_CLIENT_ID,
     MOCK_DB_AVAILABLE, OAUTH_REDIRECT_URI, USE_MOCK_DB, OAuthServiceError,
-    create_session_token, generate_unique_username, get_db_connection,
+    generate_unique_username, get_db_connection,
     get_google_profile, mock_db, send_reset_email, verify_session_token,
 )
 
@@ -109,17 +109,10 @@ def google_oauth_callback():
                 role = 'user'
                 provider = 'google'
 
-        # 4. Buat token sesi & redirect ke frontend
-        token = create_session_token({
-            "user_id": user_id,
-            "nama": nama,
-            "email": email,
-            "username": username,
-            "role": role,
-            "provider": provider,
-        })
-        redirect_url = f"{FRONTEND_URL}/#/auth?token={token}"
-        return redirect(redirect_url, code=302)
+        # 4. Terbitkan cookie HttpOnly lalu redirect tanpa token pada URL.
+        return current_app.extensions['security'].login_redirect(
+            {"user_id": user_id}, f"{FRONTEND_URL}/#/auth"
+        )
 
     except Exception as e:
         print(f"[Google OAuth] Error: {e}")
@@ -131,7 +124,7 @@ def google_oauth_callback():
 
 @bp.route('/api/auth/session', methods=['POST'])
 def auth_session():
-    """Verifikasi token sesi OAuth; terbitkan server session untuk disimpan di localStorage frontend."""
+    """Kompatibilitas OAuth lama; token ditukar menjadi cookie HttpOnly."""
     data = request.get_json(silent=True) or {}
     token = data.get('token') or request.args.get('token')
     if not token:

@@ -52,83 +52,42 @@ export default function Navbar({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userRole, setUserRole] = useState<string>('user');
 
-  // Check user role - with auto-sync from backend
+  // Sinkronkan role untuk tampilan. Backend tetap menjadi sumber otorisasi.
   React.useEffect(() => {
     const loadUserRole = async () => {
       try {
         const stored = localStorage.getItem('user');
-        console.log('[Navbar] Loading role - localStorage:', stored ? 'exists' : 'empty');
-        
-        if (stored) {
-          const user = JSON.parse(stored);
-          const userEmail = user.email;
-          console.log('[Navbar] User email:', userEmail, 'Role in localStorage:', user.role);
-          
-          // ALWAYS sync role from backend to ensure it's up-to-date
-          if (userEmail) {
-            try {
-              const API_URL = (import.meta as any).env?.VITE_API_URL || "";
-              console.log('[Navbar] Fetching role from backend for:', userEmail);
-              const response = await fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(userEmail)}`, {
-                headers: {
-                  'Content-Type': 'application/json',
-                  'ngrok-skip-browser-warning': 'true'
-                }
-              });
-              console.log('[Navbar] Backend response status:', response.status);
-              
-              if (response.ok) {
-                const data = await response.json();
-                console.log('[Navbar] Backend returned role:', data.role);
-                
-                if (data.role) {
-                  // Update both localStorage and state with backend role
-                  const updatedUser = { ...user, role: data.role };
-                  localStorage.setItem('user', JSON.stringify(updatedUser));
-                  setUserRole(data.role);
-                  console.log('✅ [Navbar] Role set to:', data.role, '| isSuperadmin:', data.role === 'superadmin');
-                  return;
-                }
-              } else {
-                console.error('❌ [Navbar] Backend fetch failed');
-              }
-            } catch (error) {
-              console.error('❌ [Navbar] Error fetching from backend:', error);
-            }
-          }
-          
-          // Fallback: use role from localStorage
-          const fallbackRole = user.role || 'user';
-          setUserRole(fallbackRole);
-          console.log('⚠️ [Navbar] Using fallback role:', fallbackRole, '| isSuperadmin:', fallbackRole === 'superadmin');
-        } else {
-          console.log('❌ [Navbar] No user in localStorage');
+        if (!stored) {
           setUserRole('user');
+          return;
         }
-      } catch (error) {
-        console.error('❌ [Navbar] Error:', error);
+        const user = JSON.parse(stored);
+        setUserRole(user.role || 'user');
+        if (!user.email) return;
+
+        try {
+          const API_URL = (import.meta as any).env?.VITE_API_URL || "";
+          const response = await fetch(`${API_URL}/api/user/role?email=${encodeURIComponent(user.email)}`, {
+            headers: {'Content-Type': 'application/json'},
+          });
+          if (!response.ok) return;
+          const data = await response.json();
+          if (data.role) {
+            localStorage.setItem('user', JSON.stringify({...user, role: data.role}));
+            setUserRole(data.role);
+          }
+        } catch { /* Gunakan profil lokal sampai validasi berikutnya. */ }
+      } catch {
         setUserRole('user');
       }
     };
-    
-    // Load on mount
+
     loadUserRole();
-    
-    // Re-load when variant changes (landing -> authenticated)
-    // This ensures role is checked after login
-    if (variant === 'authenticated') {
-      loadUserRole();
-    }
   }, [variant]);
 
   // Strict check: only 'superadmin' is admin, everything else is user/petani
   const isSuperadmin = userRole === 'superadmin';
   
-  console.log('=== NAVBAR DEBUG ===');
-  console.log('[Navbar] Current state - userRole:', userRole, 'isSuperadmin:', isSuperadmin);
-  console.log('[Navbar] User dari localStorage:', localStorage.getItem('user'));
-  console.log('[Navbar] variant:', variant);
-
   const navItems =
     variant === "authenticated"
       ? [
@@ -172,7 +131,6 @@ export default function Navbar({
             label: "Admin Panel",
             icon: <BarChart3 className="w-4 h-4" />,
             onClick: () => {
-              console.log('[Navbar] Admin Panel clicked! Navigating to /admin');
               navigate('/admin');
             },
             adminOnly: true,
@@ -185,14 +143,6 @@ export default function Navbar({
           { label: "Tim", href: "#tim" },
         ];
   
-  // Debug log untuk cek navItems
-  console.log('[Navbar] navItems count:', navItems.length);
-  if (isSuperadmin) {
-    console.log('[Navbar] Admin Panel should be included in menu!');
-    const adminItem = navItems.find((item: any) => item.label === 'Admin Panel');
-    console.log('[Navbar] Admin Panel item found:', !!adminItem);
-  }
-
   return (
     <header className="sticky top-0 z-50 bg-white/98 backdrop-blur-md border-b border-gray-200/80 shadow-sm">
       <div className="container mx-auto px-2 sm:px-4 max-w-7xl">
@@ -247,19 +197,8 @@ export default function Navbar({
           <div className="hidden lg:flex items-center gap-2 flex-shrink-0 ml-auto">
             {variant === "authenticated" ? (
               <>
-                {/* Role Badge - Rapi dengan text + Debug */}
-                <button 
-                  type="button"
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border flex-shrink-0 cursor-pointer hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2ECC71]"
-                  onClick={() => {
-                    console.log('=== DEBUG ROLE ===');
-                    console.log('userRole state:', userRole);
-                    console.log('isSuperadmin:', isSuperadmin);
-                    console.log('localStorage user:', localStorage.getItem('user'));
-                    alert(`Role: ${userRole}\nIsSuperadmin: ${isSuperadmin}\nCheck console for details`);
-                  }}
-                  title="Click untuk debug role"
-                >
+                {/* Role Badge */}
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border flex-shrink-0">
                   {isSuperadmin ? (
                     <>
                       <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
@@ -271,7 +210,7 @@ export default function Navbar({
                       <span className="text-green-700">Petani ({userRole})</span>
                     </>
                   )}
-                </button>
+                </div>
                 <Button
                   onClick={onNavigateToDetector}
                   className="bg-gradient-to-r from-[#2ECC71] to-[#27AE60] hover:from-[#27AE60] hover:to-[#229954] text-white shadow-md hover:shadow-lg transition-all text-sm"

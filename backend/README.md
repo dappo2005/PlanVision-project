@@ -48,14 +48,19 @@ Service/model/database       proses data
 JSON response + security headers
 ```
 
-Endpoint terproteksi memakai header berikut:
+Login production menerbitkan cookie sesi `plantvision_session` dengan atribut
+`HttpOnly`, `Secure`, dan `SameSite=Lax`. Token tidak dikembalikan dalam JSON dan
+tidak disimpan di `localStorage`. Request mutasi terautentikasi juga mengirim
+token CSRF dari cookie `plantvision_csrf` melalui header berikut:
 
 ```http
-Authorization: Bearer <access_token>
+X-CSRF-Token: <nilai cookie plantvision_csrf>
 ```
 
-Token diterbitkan oleh `POST /api/login`. Identitas pengguna selalu diambil dari
-sesi server; field `user_id` atau `admin_id` dari client harus cocok dengan sesi.
+Browser mengirim cookie secara otomatis pada origin aplikasi yang sama. Identitas
+pengguna selalu diambil dari sesi server; field `user_id` atau `admin_id` dari
+client harus cocok dengan sesi. Bearer hanya tersedia pada development/test untuk
+kompatibilitas pengujian dan ditolak pada staging/production.
 
 ## Alur prediksi gambar
 
@@ -97,7 +102,7 @@ python backend\app.py
 | Method | Endpoint | Keterangan |
 | --- | --- | --- |
 | `POST` | `/api/register` | Registrasi pengguna |
-| `POST` | `/api/login` | Login dan penerbitan access token |
+| `POST` | `/api/login` | Login dan penerbitan cookie sesi HttpOnly |
 | `GET` | `/api/auth/me` | Profil sesi aktif |
 | `POST` | `/api/logout` | Mencabut sesi |
 | `POST` | `/api/predict` | Prediksi citra daun |

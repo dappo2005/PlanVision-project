@@ -80,8 +80,8 @@ class RequestSecurity:
         response.headers.setdefault(
             'Content-Security-Policy',
             "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; "
-            "script-src 'self'; style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data: blob: https:; font-src 'self' data:; "
+            "script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; "
             "connect-src 'self' https: http://192.168.4.1"
         )
         if request.path.startswith('/api/'):

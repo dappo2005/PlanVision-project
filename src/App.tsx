@@ -18,10 +18,9 @@ import Sidebar from "./components/Sidebar";
 import ResetPassword from "./pages/ResetPassword";
 import SetPasswordDialog from "./components/SetPasswordDialog";
 import { Toaster } from "./components/ui/sonner";
-import { authClient, getStoredUser, saveStoredUser, installAuthInterceptor } from "./lib/auth-client";
+import { authClient, getStoredUser, installAuthInterceptor } from "./lib/auth-client";
 
-// Install the global fetch interceptor so all existing fetch() calls
-// in components automatically include the Authorization header.
+// Pastikan request lama memakai cookie same-origin dan header CSRF.
 installAuthInterceptor();
 
 // Protected Route Component
@@ -31,25 +30,17 @@ function ProtectedRoute({ children, requireAdmin = false }: { children: React.Re
   const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('user');
-      if (stored) {
-        const user = JSON.parse(stored);
-        setIsAuthenticated(true);
-        setUserRole(user.role || 'user');
-        
-        // Jika require admin tapi bukan superadmin, redirect
-        if (requireAdmin && user.role !== 'superadmin') {
-          setIsAuthenticated(false);
-        }
-      } else {
-        setIsAuthenticated(false);
-      }
-    } catch (_) {
-      setIsAuthenticated(false);
-    } finally {
-      setIsLoading(false);
-    }
+    let active = true;
+    authClient.validateSession()
+      .then((user) => {
+        if (!active) return;
+        const role = user?.role || 'user';
+        setUserRole(role);
+        setIsAuthenticated(!!user);
+      })
+      .catch(() => { if (active) setIsAuthenticated(false); })
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
   }, [requireAdmin]);
 
   if (isLoading) return null;
@@ -73,47 +64,32 @@ export default function App() {
   const [showSetPassword, setShowSetPassword] = useState(false);
   const [setPasswordEmail, setSetPasswordEmail] = useState("");
 
-  // Check auth status on mount and route change
+  // Cookie HttpOnly adalah sumber kebenaran; profil lokal hanya cache tampilan.
   useEffect(() => {
-    setIsAuthenticated(!!getStoredUser());
+    if (!getStoredUser()) {
+      setIsAuthenticated(false);
+      return;
+    }
+    let active = true;
+    authClient.validateSession()
+      .then((user) => { if (active) setIsAuthenticated(!!user); })
+      .catch(() => { if (active) setIsAuthenticated(false); });
+    return () => { active = false; };
   }, [location.pathname]);
 
-  // Handle Google OAuth redirect callback (#/auth?token=...)
+  // Google OAuth kini kembali dengan cookie HttpOnly, tanpa token di URL.
   useEffect(() => {
     const hash = window.location.hash;
     if (hash.startsWith('#/auth')) {
-      const query = hash.replace(/^#\/auth[?]?/, '');
-      const params = new URLSearchParams(query);
-      const token = params.get('token');
-      if (token) {
-        const API_URL = (import.meta as any).env?.VITE_API_URL || "";
-        fetch(`${API_URL}/api/auth/session`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'ngrok-skip-browser-warning': 'true',
-          },
-          body: JSON.stringify({ token }),
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data && data.user_id != null && data.access_token) {
-              try {
-                saveStoredUser(data);
-              } catch {
-                localStorage.setItem('user', JSON.stringify(data));
-              }
-              setIsAuthenticated(true);
-              // Jika user terdaftar via Google dan belum punya password lokal -> ajak buat kata sandi
-              if (data.provider === 'google' && !data.has_password) {
-                setShowSetPassword(true);
-                setSetPasswordEmail(data.email || "");
-              }
-              navigate('/dashboard', { replace: true });
-            }
-          })
-          .catch((err) => console.error('OAuth session error:', err));
-      }
+      authClient.validateSession().then((data) => {
+        if (!data) return;
+        setIsAuthenticated(true);
+        if (data.provider === 'google' && !data.has_password) {
+          setShowSetPassword(true);
+          setSetPasswordEmail(data.email || "");
+        }
+        navigate('/dashboard', { replace: true });
+      }).catch(() => navigate('/', { replace: true }));
     }
   }, [navigate]);
 
